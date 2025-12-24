@@ -1,0 +1,205 @@
+# Cursor Rules — Solo Vibe Coder Stack 2025
+
+## 🎯 ОБЯЗАТЕЛЬНЫЙ СТЕК (БЕЗ АЛЬТЕРНАТИВ)
+
+### Frontend
+- **React 18+** с functional components и hooks
+- **Vite** — сборка, hot reload, dev server
+- **TypeScript** — strict mode, никакого `any`
+- **Tailwind CSS** — стилизация (НЕ CSS modules, SCSS, styled-components)
+- **Shadcn/UI** — готовые компоненты (копируются в проект)
+
+### Backend / Database
+- **Supabase** — PostgreSQL, Auth, Realtime, Storage, Edge Functions
+- Клиент: `@supabase/supabase-js`
+- Row Level Security (RLS) — обязательно для всех таблиц
+- **НЕТ** серверного кода — всё client-side или Supabase Edge Functions
+
+### State Management
+- **Zustand** или **Jotai** для глобального стейта
+- React Query / TanStack Query для серверного стейта
+- **НЕТ** Redux, MobX, Context API для сложного стейта
+
+### Deploy / CI/CD
+- **GitHub** — репозиторий, версионирование
+- **Netlify** — хостинг, автодеплой с GitHub
+- Preview deploys для каждого PR
+
+### Code Review
+- **Graphite** — stacked PRs, само-ревью
+- Команды: `gt stack create`, `gt stack submit`, `gt stack fix`
+
+---
+
+## ⚡ ПРАВИЛА ГЕНЕРАЦИИ КОДА
+
+### Компоненты React
+```tsx
+// ✅ ПРАВИЛЬНО: functional component + TypeScript
+interface ButtonProps {
+  label: string;
+  onClick: () => void;
+  variant?: 'primary' | 'secondary';
+}
+
+export function Button({ label, onClick, variant = 'primary' }: ButtonProps) {
+  return (
+    <button 
+      onClick={onClick}
+      className={cn(
+        'px-4 py-2 rounded-lg font-medium transition-colors',
+        variant === 'primary' && 'bg-blue-600 text-white hover:bg-blue-700',
+        variant === 'secondary' && 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+```
+
+### Supabase Hooks
+```tsx
+// ✅ Кастомный хук для Supabase
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+
+export function useItems() {
+  return useQuery({
+    queryKey: ['items'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    }
+  });
+}
+```
+
+### Типизация Supabase
+```tsx
+// ✅ Генерируй типы из схемы: npx supabase gen types typescript
+import { Database } from '@/types/supabase';
+type Item = Database['public']['Tables']['items']['Row'];
+```
+
+---
+
+## 🚫 ЗАПРЕТЫ (ГАЛЛЮЦИНАЦИИ)
+
+### Никогда не предлагай:
+- ❌ **Next.js**, Remix, Gatsby, CRA — только Vite
+- ❌ **Firebase**, AWS Amplify, MongoDB — только Supabase
+- ❌ **Vercel** — только Netlify
+- ❌ **Express**, Fastify, Node.js сервер — только Edge Functions
+- ❌ **Redux**, MobX — только Zustand/Jotai
+- ❌ **CSS Modules**, SCSS, styled-components — только Tailwind
+- ❌ **class components** — только functional + hooks
+- ❌ **any** тип в TypeScript — всегда явная типизация
+- ❌ **npm** — использовать pnpm или bun
+
+### Самопроверка перед ответом:
+> "Соблюдаю ли я стек проекта? Если предлагаю альтернативу — СТОП, перегенерируй по стеку."
+
+---
+
+## 📁 СТРУКТУРА ПРОЕКТА
+
+```
+├── src/
+│   ├── components/        # UI компоненты (Shadcn)
+│   │   └── ui/           # Shadcn компоненты
+│   ├── features/         # Фичи (feature-sliced)
+│   ├── hooks/            # Кастомные хуки
+│   ├── lib/              # Утилиты, supabase client
+│   ├── stores/           # Zustand stores
+│   ├── types/            # TypeScript типы
+│   └── App.tsx
+├── supabase/
+│   ├── functions/        # Edge Functions
+│   └── migrations/       # SQL миграции
+├── .env.local            # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+├── vite.config.ts
+├── tailwind.config.js
+└── tsconfig.json
+```
+
+---
+
+## 🔧 КОМАНДЫ РАЗРАБОТКИ
+
+```bash
+# Инициализация проекта
+pnpm create vite@latest my-app --template react-ts
+cd my-app
+pnpm add @supabase/supabase-js @tanstack/react-query zustand
+pnpm add -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+npx shadcn@latest init
+
+# Supabase
+npx supabase init
+npx supabase gen types typescript --local > src/types/supabase.ts
+
+# Graphite
+gt stack create feature-name
+gt stack submit
+gt stack fix  # автоисправление после ревью
+```
+
+---
+
+## 🎨 UI/UX ПРИНЦИПЫ
+
+- **Mobile-first** — начинай с мобильной версии
+- **Минимализм** — меньше элементов, больше пустого пространства
+- **Анимации** — Tailwind transitions, Framer Motion для сложных
+- **Dark mode** — поддержка через Tailwind `dark:` классы
+- **Accessibility** — семантичный HTML, aria-labels
+
+---
+
+## 💡 ПРОМПТ-ШАБЛОНЫ
+
+При запросе функционала используй:
+- "Создай [feature] по стеку проекта"
+- "Добавь Supabase интеграцию для [table]"
+- "Сделай stacked PR: UI → логика → API"
+
+---
+
+## 📝 GIT КОНВЕНЦИИ
+
+```bash
+# Коммиты (conventional commits)
+feat: добавил авторизацию
+fix: исправил баг в форме
+refactor: переписал хук useItems
+chore: обновил зависимости
+
+# Stacked PRs в Graphite
+gt stack create auth-flow
+gt commit -m "feat: добавил login форму"
+gt commit -m "feat: добавил Supabase auth"
+gt stack submit
+```
+
+---
+
+## ⚠️ ВАЖНО
+
+1. **Всегда проверяй Supabase RLS** — без политик данные открыты всем
+2. **Env переменные** — VITE_* для клиента, остальные в Edge Functions
+3. **Типизация** — генерируй типы из Supabase схемы
+4. **Netlify** — добавь `netlify.toml` для SPA routing:
+
+```toml
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+```
+
