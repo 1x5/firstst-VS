@@ -1,0 +1,139 @@
+import { supabase } from '@/lib/supabase';
+import type { Transaction, NewTransaction, UpdateTransaction } from '@/types/transaction';
+import type { Database } from '@/types/supabase';
+
+type TransactionRow = Database['public']['Tables']['transactions']['Row'];
+type TransactionUpdate = Database['public']['Tables']['transactions']['Update'];
+
+// Преобразование из формата БД в формат приложения
+const fromDb = (row: TransactionRow): Transaction => ({
+  id: row.id,
+  type: row.type,
+  amount: Number(row.amount),
+  category: row.category,
+  categoryName: row.category_name,
+  description: row.description || '',
+  date: row.date,
+  isRecurring: row.is_recurring || false,
+  recurringInterval: row.recurring_interval,
+  currency: row.currency || 'RUB',
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+// Преобразование в формат БД
+const toDb = (transaction: NewTransaction | UpdateTransaction, userId: string) => ({
+  user_id: userId,
+  type: transaction.type,
+  amount: transaction.amount,
+  category: transaction.category,
+  category_name: transaction.categoryName,
+  description: transaction.description || '',
+  date: transaction.date,
+  is_recurring: transaction.isRecurring || false,
+  recurring_interval: transaction.recurringInterval || null,
+  currency: transaction.currency || 'RUB',
+});
+
+export const transactionsService = {
+  // Получить все транзакции пользователя
+  async getAll(): Promise<Transaction[]> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    // Если таблица не существует (404), возвращаем пустой массив
+    if (error) {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        console.warn('Таблица transactions не существует. Работаем в локальном режиме.');
+        return [];
+      }
+      throw error;
+    }
+    return (data || []).map(fromDb);
+  },
+
+  // Получить транзакции за период
+  async getByDateRange(startDate: string, endDate: string): Promise<Transaction[]> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(fromDb);
+  },
+
+  // Создать транзакцию
+  async create(transaction: NewTransaction, userId: string): Promise<Transaction> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert(toDb(transaction, userId))
+      .select()
+      .single();
+
+    if (error) throw error;
+    return fromDb(data);
+  },
+
+  // Обновить транзакцию
+  async update(id: string, transaction: UpdateTransaction, userId: string): Promise<Transaction> {
+    const updateData: TransactionUpdate = {};
+    
+    if (transaction.type !== undefined) updateData.type = transaction.type;
+    if (transaction.amount !== undefined) updateData.amount = transaction.amount;
+    if (transaction.category !== undefined) updateData.category = transaction.category;
+    if (transaction.categoryName !== undefined) updateData.category_name = transaction.categoryName;
+    if (transaction.description !== undefined) updateData.description = transaction.description;
+    if (transaction.date !== undefined) updateData.date = transaction.date;
+    if (transaction.isRecurring !== undefined) updateData.is_recurring = transaction.isRecurring;
+    if (transaction.recurringInterval !== undefined) updateData.recurring_interval = transaction.recurringInterval;
+    if (transaction.currency !== undefined) updateData.currency = transaction.currency;
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return fromDb(data);
+  },
+
+  // Удалить транзакцию
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
+  // Подписка на изменения (realtime)
+  subscribeToChanges(userId: string, callback: (transactions: Transaction[]) => void) {
+    return supabase
+      .channel('transactions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${userId}`,
+        },
+        async () => {
+          // При любом изменении перезагружаем все транзакции
+          const transactions = await this.getAll();
+          callback(transactions);
+        }
+      )
+      .subscribe();
+  },
+};
+

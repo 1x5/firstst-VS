@@ -1,6 +1,3 @@
-// Этот файл генерируется автоматически:
-// pnpm supabase:types
-
 export type Json =
   | string
   | number
@@ -12,27 +9,77 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      items: {
+      transactions: {
         Row: {
           id: string
-          created_at: string
-          title: string
-          description: string | null
           user_id: string
+          type: 'income' | 'expense'
+          amount: number
+          category: string
+          category_name: string
+          description: string | null
+          date: string
+          is_recurring: boolean
+          recurring_interval: 'daily' | 'weekly' | 'monthly' | 'yearly' | null
+          currency: string
+          created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
-          created_at?: string
-          title: string
-          description?: string | null
           user_id: string
+          type: 'income' | 'expense'
+          amount: number
+          category: string
+          category_name: string
+          description?: string | null
+          date: string
+          is_recurring?: boolean
+          recurring_interval?: 'daily' | 'weekly' | 'monthly' | 'yearly' | null
+          currency?: string
+          created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
-          created_at?: string
-          title?: string
-          description?: string | null
           user_id?: string
+          type?: 'income' | 'expense'
+          amount?: number
+          category: string
+          category_name?: string
+          description?: string | null
+          date?: string
+          is_recurring?: boolean
+          recurring_interval?: 'daily' | 'weekly' | 'monthly' | 'yearly' | null
+          currency?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      categories: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          type: 'income' | 'expense'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          type: 'income' | 'expense'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          type?: 'income' | 'expense'
+          created_at?: string
+          updated_at?: string
         }
       }
     }
@@ -47,4 +94,3 @@ export interface Database {
     }
   }
 }
-
