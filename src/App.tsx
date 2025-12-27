@@ -1,67 +1,171 @@
-import { useAppStore } from '@/stores/app'
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Wallet, Moon, Sun, LogOut, Loader2, Settings } from 'lucide-react';
+import { OfflineIndicator } from '@/components/OfflineIndicator';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { useThemeStore } from '@/stores/theme';
+import { useAuthStore } from '@/stores/auth';
+import { useAppearanceStore } from '@/stores/appearance';
+import { useFinanceStore, selectBalance } from '@/stores/finance';
 
-export default function App() {
-  const { count, increment, decrement } = useAppStore()
+// Pages
+import { IncomePage } from '@/pages/IncomePage';
+import { ExpensePage } from '@/pages/ExpensePage';
+import { AuthPage } from '@/pages/AuthPage';
+import { SettingsPage } from '@/pages/SettingsPage';
+
+function AppLayout() {
+  const navigate = useNavigate();
+  const { isDark, toggle } = useThemeStore();
+  const { user, signOut } = useAuthStore();
+  const { appName, showLogoIcon } = useAppearanceStore();
+  const balance = useFinanceStore(selectBalance);
+
+  const formatBalance = (amount: number) => {
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: 'RUB',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDark]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Gradient background */}
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-black" />
-      
-      <main className="container mx-auto px-4 py-16">
-        <div className="flex flex-col items-center justify-center gap-8">
-          {/* Logo */}
-          <div className="relative">
-            <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 opacity-75 blur" />
-            <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-zinc-900">
-              <span className="text-3xl">⚡</span>
-            </div>
-          </div>
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="container mx-auto flex h-11 items-center justify-between px-3 sm:h-12 lg:h-14">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2"
+          >
+            {showLogoIcon && (
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground lg:h-8 lg:w-8">
+                <Wallet className="h-3.5 w-3.5 text-background lg:h-4 lg:w-4" />
+              </div>
+            )}
+            <h1 className="text-sm font-semibold sm:text-base lg:text-lg">{appName}</h1>
+          </button>
 
-          {/* Title */}
-          <h1 className="bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-center text-5xl font-bold tracking-tight text-transparent">
-            Vibe Starter
-          </h1>
-          
-          <p className="max-w-md text-center text-zinc-400">
-            React + Vite + TypeScript + Tailwind + Supabase + Zustand
-          </p>
-
-          {/* Counter demo */}
-          <div className="flex items-center gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur">
-            <button
-              onClick={decrement}
-              className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-800 text-xl font-medium text-white transition-colors hover:bg-zinc-700"
-            >
-              −
-            </button>
-            
-            <span className="w-16 text-center text-3xl font-bold tabular-nums text-white">
-              {count}
+          {/* Balance in center */}
+          <div className="absolute left-1/2 -translate-x-1/2">
+            <span className={`text-sm font-bold tabular-nums sm:text-base lg:text-lg ${balance < 0 ? 'text-muted-foreground' : ''}`}>
+              {formatBalance(balance)}
             </span>
-            
-            <button
-              onClick={increment}
-              className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-600 text-xl font-medium text-white transition-colors hover:bg-violet-500"
-            >
-              +
-            </button>
           </div>
 
-          {/* Stack badges */}
-          <div className="flex flex-wrap justify-center gap-2">
-            {['React 18', 'Vite', 'TypeScript', 'Tailwind', 'Supabase', 'Zustand'].map((tech) => (
-              <span
-                key={tech}
-                className="rounded-full border border-zinc-800 bg-zinc-900/50 px-3 py-1 text-sm text-zinc-400"
-              >
-                {tech}
+          <div className="flex items-center gap-1">
+            {user && (
+              <span className="hidden text-xs text-muted-foreground sm:block">
+                {user.email}
               </span>
-            ))}
+            )}
+            {user && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/settings')}
+                className="h-7 w-7"
+                title="Настройки"
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggle}
+              className="h-7 w-7"
+            >
+              {isDark ? (
+                <Sun className="h-3.5 w-3.5" />
+              ) : (
+                <Moon className="h-3.5 w-3.5" />
+              )}
+            </Button>
+            {user && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={signOut}
+                className="h-7 w-7"
+                title="Выйти"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <main className="container mx-auto px-3 py-3 sm:py-4 lg:py-6">
+        <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+          <Routes>
+            <Route path="/" element={<ExpensePage />} />
+            <Route path="/income" element={<IncomePage />} />
+            <Route path="/expense" element={<ExpensePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
         </div>
       </main>
     </div>
-  )
+  );
 }
 
+function LoadingScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
+function AuthenticatedApp() {
+  const { user, isLoading, initialize } = useAuthStore();
+  const { isDark } = useThemeStore();
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDark]);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  return (
+    <>
+      <AppLayout />
+      <OfflineIndicator />
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthenticatedApp />
+    </BrowserRouter>
+  );
+}

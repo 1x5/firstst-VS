@@ -1,79 +1,162 @@
-# Vibe Starter
+# 💰 Финансы — Учёт доходов и расходов
 
-Стартер для соло вайб-кодера. React + Vite + TypeScript + Tailwind + Supabase + Zustand.
+Веб-приложение для учёта личных финансов, построенное по **Solo Vibe Coder Stack 2025**.
 
-## Быстрый старт
+## 🎯 Стек проекта
+
+| Технология | Версия | Назначение |
+|------------|--------|------------|
+| React | 18.3+ | UI фреймворк (functional components + hooks) |
+| Vite | 5.4+ | Сборка, HMR, dev server |
+| TypeScript | 5.5+ | Типизация (strict mode) |
+| Tailwind CSS | 3.4+ | Стилизация |
+| Shadcn/UI | — | UI компоненты |
+| Zustand | 4.5+ | State management с persist |
+| Supabase | 2.45+ | PostgreSQL, Auth, RLS |
+| TanStack Query | 5.51+ | Серверный стейт |
+
+## ✨ Возможности
+
+- 📊 **Статистика** — баланс, доходы, расходы, сбережения
+- ➕ **Добавление транзакций** — форма с категориями
+- 🗂️ **15+ категорий** — для доходов и расходов
+- 🔍 **Фильтрация** — все / доходы / расходы
+- 📅 **Группировка** — история по датам
+- 🌙 **Dark mode** — через Tailwind `dark:`
+- 💾 **Persist** — данные сохраняются в localStorage
+- 📱 **Mobile-first** — адаптивный дизайн
+
+## 🚀 Быстрый старт
 
 ```bash
-# Установи зависимости
+# Установка (pnpm, не npm!)
 pnpm install
 
-# Скопируй env
-cp .env.example .env.local
-# Добавь Supabase ключи в .env.local
-
-# Запусти dev сервер
+# Dev server
 pnpm dev
+
+# Открыть http://localhost:3000
 ```
 
-## Стек
-
-- **React 18** — functional components + hooks
-- **Vite** — быстрый dev server и сборка
-- **TypeScript** — strict mode
-- **Tailwind CSS** — утилитарные классы
-- **Shadcn/UI** — готовые компоненты
-- **Supabase** — PostgreSQL, Auth, Realtime
-- **Zustand** — глобальный стейт
-- **TanStack Query** — серверный стейт
-- **Netlify** — хостинг
-
-## Команды
-
-```bash
-pnpm dev          # Dev сервер на :3000
-pnpm build        # Продакшн билд
-pnpm preview      # Превью билда
-pnpm supabase:types  # Генерация типов из Supabase
-```
-
-## Добавление Shadcn компонентов
-
-```bash
-npx shadcn@latest add button
-npx shadcn@latest add input
-npx shadcn@latest add card
-```
-
-## Supabase
-
-```bash
-# Инициализация (один раз)
-npx supabase init
-
-# Генерация типов
-pnpm supabase:types
-
-# Локальная разработка
-npx supabase start
-```
-
-## Деплой на Netlify
-
-1. Push в GitHub
-2. Подключи репо в Netlify
-3. Добавь env переменные в Netlify
-4. Готово — автодеплой при каждом пуше
-
-## Структура
+## 📁 Структура проекта
 
 ```
 src/
-├── components/ui/   # Shadcn компоненты
-├── hooks/           # Кастомные хуки (TanStack Query)
-├── lib/             # Утилиты, Supabase клиент
-├── stores/          # Zustand сторы
-├── types/           # TypeScript типы
-└── App.tsx          # Главный компонент
+├── components/
+│   ├── ui/                    # Shadcn/UI компоненты
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── dialog.tsx
+│   │   ├── input.tsx
+│   │   ├── label.tsx
+│   │   ├── select.tsx
+│   │   ├── tabs.tsx
+│   │   └── badge.tsx
+│   ├── StatsCards.tsx         # Карточки статистики
+│   ├── TransactionForm.tsx    # Форма добавления
+│   └── TransactionList.tsx    # Список транзакций
+├── stores/
+│   └── finance.ts             # Zustand store
+├── types/
+│   ├── supabase.ts            # Типы Supabase
+│   └── transaction.ts         # Типы транзакций
+├── lib/
+│   ├── supabase.ts            # Supabase client
+│   └── utils.ts               # cn() утилита
+├── App.tsx
+└── main.tsx
+supabase/
+└── migrations/
+    └── 001_create_transactions.sql  # RLS миграция
 ```
 
+## 🎨 Категории
+
+### Доходы
+| Иконка | Категория |
+|--------|-----------|
+| 💰 | Зарплата |
+| 💻 | Фриланс |
+| 📈 | Инвестиции |
+| 🎁 | Подарок |
+| ✨ | Другое |
+
+### Расходы
+| Иконка | Категория |
+|--------|-----------|
+| 🍔 | Еда |
+| 🚗 | Транспорт |
+| 🏠 | Жильё |
+| 💡 | Коммуналка |
+| 🎮 | Развлечения |
+| 🛍️ | Покупки |
+| 💊 | Здоровье |
+| 📚 | Образование |
+| 📱 | Подписки |
+| 📦 | Другое |
+
+## 🗄️ Supabase интеграция
+
+### Настройка
+
+1. Создай проект на [supabase.com](https://supabase.com)
+2. Скопируй переменные в `.env.local`:
+
+```env
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=xxx
+```
+
+3. Примени миграцию:
+
+```bash
+npx supabase db push
+```
+
+### RLS политики
+
+Таблица `transactions` защищена RLS:
+- ✅ SELECT — только свои записи
+- ✅ INSERT — только свои записи
+- ✅ UPDATE — только свои записи
+- ✅ DELETE — только свои записи
+
+## 🔧 Команды
+
+```bash
+# Разработка
+pnpm dev
+
+# Сборка
+pnpm build
+
+# Превью production
+pnpm preview
+
+# Генерация типов Supabase
+pnpm supabase:types
+
+# Lint
+pnpm lint
+```
+
+## 📝 Git конвенции
+
+```bash
+# Conventional commits
+feat: добавил фильтрацию по месяцам
+fix: исправил баг с суммой
+refactor: переписал StatsCards
+chore: обновил зависимости
+```
+
+## ⚠️ Важно
+
+1. **Используй pnpm** — не npm
+2. **Supabase RLS** — все таблицы защищены
+3. **Env переменные** — `VITE_*` для клиента
+4. **TypeScript** — никакого `any`
+
+## 📄 Лицензия
+
+MIT © 2025
