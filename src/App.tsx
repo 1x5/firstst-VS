@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { Wallet, Moon, Sun, LogOut, Loader2, Settings } from 'lucide-react';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
 import { useNavigate } from 'react-router-dom';
@@ -164,8 +164,8 @@ function AuthenticatedApp() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthenticatedApp />
-    </BrowserRouter>
+    </HashRouter>
   );
 }
