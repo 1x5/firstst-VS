@@ -3,8 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main  # Запускается при пуше в main ветку
-  workflow_dispatch:  # Позволяет запускать вручную
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
