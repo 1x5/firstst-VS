@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { safeStorage } from '@/lib/safe-storage';
+import { activityLogsService } from '@/services/activityLogs';
 
 export interface ActivityLog {
   id: string;
@@ -14,8 +15,10 @@ export interface ActivityLog {
 
 interface ActivityLogState {
   logs: ActivityLog[];
-  addLog: (log: Omit<ActivityLog, 'id' | 'timestamp'>) => void;
-  clearLogs: () => void;
+  isLoading: boolean;
+  addLog: (log: Omit<ActivityLog, 'id' | 'timestamp'>, userId: string, transactionId?: string) => Promise<void>;
+  loadLogs: (userId: string) => Promise<void>;
+  clearLogs: (userId: string) => Promise<void>;
   getLogsByType: (type: 'income' | 'expense' | 'all') => ActivityLog[];
   getAllLogs: () => ActivityLog[];
 }
@@ -24,21 +27,56 @@ export const useActivityLogStore = create<ActivityLogState>()(
   persist(
     (set, get) => ({
       logs: [],
+      isLoading: false,
       
-      addLog: (log) => {
+      addLog: async (log, userId, transactionId) => {
         const newLog: ActivityLog = {
           ...log,
           id: `log-${Date.now()}-${Math.random()}`,
           timestamp: Date.now(),
         };
         
+        // Оптимистичное обновление UI
         set((state) => ({
           logs: [newLog, ...state.logs].slice(0, 50), // Храним максимум 50 логов
         }));
+        
+        // Сохраняем в Supabase в фоне (не блокируем UI)
+        try {
+          const savedLog = await activityLogsService.create(log, userId, transactionId);
+          // Обновляем ID если сохранение успешно
+          set((state) => ({
+            logs: state.logs.map((l) => 
+              l.id === newLog.id ? { ...l, id: savedLog.id } : l
+            ),
+          }));
+        } catch (error) {
+          // Если ошибка, лог остается в локальном хранилище
+          console.warn('Не удалось сохранить лог в Supabase:', error);
+        }
       },
       
-      clearLogs: () => {
+      loadLogs: async (userId: string) => {
+        set({ isLoading: true });
+        try {
+          const logs = await activityLogsService.getAll(50);
+          set({ logs, isLoading: false });
+        } catch (error) {
+          console.warn('Не удалось загрузить логи из Supabase:', error);
+          set({ isLoading: false });
+        }
+      },
+      
+      clearLogs: async (userId: string) => {
+        // Очищаем локально
         set({ logs: [] });
+        
+        // Очищаем в Supabase в фоне
+        try {
+          await activityLogsService.deleteAll(userId);
+        } catch (error) {
+          console.warn('Не удалось очистить логи в Supabase:', error);
+        }
       },
       
       getLogsByType: (type) => {

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import { useFinanceStore } from './finance';
 import { useCategoriesStore } from './categories';
+import { useActivityLogStore } from './activityLog';
 
 interface AuthState {
   user: User | null;
@@ -24,6 +25,7 @@ const loadUserData = async (userId: string) => {
   await Promise.all([
     useFinanceStore.getState().loadTransactions(),
     useCategoriesStore.getState().loadCategories(userId),
+    useActivityLogStore.getState().loadLogs(userId),
   ]);
 };
 

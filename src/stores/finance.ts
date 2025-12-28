@@ -66,13 +66,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       }));
       
       // Логируем действие
-      useActivityLogStore.getState().addLog({
+      await useActivityLogStore.getState().addLog({
         type: newTransaction.type,
         action: 'added',
         amount: newTransaction.amount,
         description: newTransaction.description,
         categoryName: newTransaction.categoryName,
-      });
+      }, userId, created.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Ошибка сохранения';
       set({ error: message });
@@ -95,13 +95,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       
       // Логируем действие
       if (previousTransaction) {
-        useActivityLogStore.getState().addLog({
+        await useActivityLogStore.getState().addLog({
           type: updated.type,
           action: 'updated',
           amount: updated.amount,
           description: updated.description,
           categoryName: updated.categoryName,
-        });
+        }, userId, updated.id);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Ошибка обновления';
@@ -126,13 +126,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       
       // Логируем действие
       if (deletedTransaction) {
-        useActivityLogStore.getState().addLog({
+        await useActivityLogStore.getState().addLog({
           type: deletedTransaction.type,
           action: 'deleted',
           amount: deletedTransaction.amount,
           description: deletedTransaction.description,
           categoryName: deletedTransaction.categoryName,
-        });
+        }, userId, deletedTransaction.id);
       }
     } catch (error) {
       // Откатываем при ошибке

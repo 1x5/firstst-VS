@@ -10,14 +10,14 @@ type TransactionUpdate = Database['public']['Tables']['transactions']['Update'];
 // Преобразование из формата БД в формат приложения
 const fromDb = (row: TransactionRow): Transaction => ({
   id: row.id,
-  type: row.type,
+  type: row.type as 'income' | 'expense',
   amount: Number(row.amount),
   category: row.category,
   categoryName: row.category_name,
   description: row.description || '',
   date: row.date,
   isRecurring: row.is_recurring || false,
-  recurringInterval: row.recurring_interval,
+  recurringInterval: row.recurring_interval || null,
   currency: row.currency || 'RUB',
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -26,7 +26,7 @@ const fromDb = (row: TransactionRow): Transaction => ({
 // Преобразование в формат БД
 const toDb = (transaction: NewTransaction | UpdateTransaction, userId: string): TransactionInsert => ({
   user_id: userId,
-  type: transaction.type,
+  type: transaction.type as 'income' | 'expense',
   amount: transaction.amount,
   category: transaction.category,
   category_name: transaction.categoryName,
@@ -110,10 +110,10 @@ export const transactionsService = {
   },
 
   // Обновить транзакцию
-  async update(id: string, transaction: UpdateTransaction, userId: string): Promise<Transaction> {
+  async update(id: string, transaction: UpdateTransaction, _userId: string): Promise<Transaction> {
     const updateData: Partial<TransactionUpdate> = {};
 
-    if (transaction.type !== undefined) updateData.type = transaction.type;
+    if (transaction.type !== undefined) updateData.type = transaction.type as 'income' | 'expense';
     if (transaction.amount !== undefined) updateData.amount = transaction.amount;
     if (transaction.category !== undefined) updateData.category = transaction.category;
     if (transaction.categoryName !== undefined) updateData.category_name = transaction.categoryName;
@@ -145,7 +145,7 @@ export const transactionsService = {
   },
 
   // Подписка на изменения (realtime)
-  subscribeToChanges(_userId: string) {
+  subscribeToChanges(userId: string) {
     return supabase
       .channel('transactions-changes')
       .on(

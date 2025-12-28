@@ -190,7 +190,9 @@ export function SettingsPage() {
       if (createTransError) throw createTransError;
 
       // Очищаем логи активности
-      useActivityLogStore.getState().clearLogs();
+      if (user) {
+        await useActivityLogStore.getState().clearLogs(user.id);
+      }
       
       // Перезагружаем данные
       await useCategoriesStore.getState().loadCategories(user.id);

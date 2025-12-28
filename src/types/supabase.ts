@@ -82,6 +82,41 @@ export interface Database {
           updated_at?: string
         }
       }
+      activity_logs: {
+        Row: {
+          id: string
+          user_id: string
+          type: 'income' | 'expense'
+          action: 'added' | 'updated' | 'deleted'
+          amount: number | null
+          description: string | null
+          category_name: string | null
+          transaction_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: 'income' | 'expense'
+          action: 'added' | 'updated' | 'deleted'
+          amount?: number | null
+          description?: string | null
+          category_name?: string | null
+          transaction_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: 'income' | 'expense'
+          action?: 'added' | 'updated' | 'deleted'
+          amount?: number | null
+          description?: string | null
+          category_name?: string | null
+          transaction_id?: string | null
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

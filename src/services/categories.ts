@@ -4,7 +4,6 @@ import type { Database } from '@/types/supabase';
 
 type CategoryRow = Database['public']['Tables']['categories']['Row'];
 type CategoryInsert = Database['public']['Tables']['categories']['Insert'];
-type CategoryUpdate = Database['public']['Tables']['categories']['Update'];
 
 export interface Category {
   id: string;
