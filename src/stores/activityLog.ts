@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { safeStorage } from '@/lib/safe-storage';
 
 export interface ActivityLog {
   id: string;
@@ -53,6 +54,7 @@ export const useActivityLogStore = create<ActivityLogState>()(
     }),
     {
       name: 'activity-log-storage',
+      storage: createJSONStorage(() => safeStorage),
     }
   )
 );

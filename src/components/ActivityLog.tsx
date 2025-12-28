@@ -50,8 +50,21 @@ export const ActivityLog = memo(function ActivityLog({ type }: ActivityLogProps)
   const visibleLogs = expanded ? logs.slice(0, 13) : logs.slice(0, 3);
   const hasMore = logs.length > 3;
 
+  // Отображаем блок даже если логов нет, чтобы пользователь видел, что функционал работает
+  // Но показываем только заголовок без содержимого
   if (logs.length === 0) {
-    return null;
+    return (
+      <div className="rounded-lg border bg-card p-2">
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+            Последние действия
+          </h3>
+        </div>
+        <div className="py-2 text-center">
+          <p className="text-[10px] text-muted-foreground">Нет действий</p>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -8,12 +8,11 @@ import { useAuthStore } from '@/stores/auth';
 import { useAppearanceStore } from '@/stores/appearance';
 import { useFinanceStore, selectBalance } from '@/stores/finance';
 
-// Pages - lazy loading для code splitting
-import { lazy, Suspense } from 'react';
-const IncomePage = lazy(() => import('@/pages/IncomePage').then(m => ({ default: m.IncomePage })));
-const ExpensePage = lazy(() => import('@/pages/ExpensePage').then(m => ({ default: m.ExpensePage })));
-const AuthPage = lazy(() => import('@/pages/AuthPage').then(m => ({ default: m.AuthPage })));
-const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+// Pages - обычный импорт для стабильности в приватном режиме
+import { IncomePage } from '@/pages/IncomePage';
+import { ExpensePage } from '@/pages/ExpensePage';
+import { AuthPage } from '@/pages/AuthPage';
+import { SettingsPage } from '@/pages/SettingsPage';
 
 function AppLayout() {
   const navigate = useNavigate();
@@ -117,14 +116,12 @@ function AppLayout() {
       {/* Main content */}
       <main className="container mx-auto flex min-h-[calc(100vh-3.5rem)] flex-col px-3 py-3 sm:py-4 lg:py-6">
         <div className="flex flex-1 flex-col space-y-3 sm:space-y-4 lg:space-y-6">
-          <Suspense fallback={<LoadingScreen />}>
-            <Routes>
-              <Route path="/" element={<ExpensePage />} />
-              <Route path="/income" element={<IncomePage />} />
-              <Route path="/expense" element={<ExpensePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-            </Routes>
-          </Suspense>
+          <Routes>
+            <Route path="/" element={<ExpensePage />} />
+            <Route path="/income" element={<IncomePage />} />
+            <Route path="/expense" element={<ExpensePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
         </div>
       </main>
     </div>

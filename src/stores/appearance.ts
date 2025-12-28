@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { safeStorage } from '@/lib/safe-storage';
 
 interface AppearanceState {
   appName: string;
@@ -20,6 +21,7 @@ export const useAppearanceStore = create<AppearanceState>()(
     }),
     {
       name: 'appearance-storage',
+      storage: createJSONStorage(() => safeStorage),
     }
   )
 );
