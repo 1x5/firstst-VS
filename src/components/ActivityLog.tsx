@@ -56,7 +56,7 @@ export const ActivityLog = memo(function ActivityLog({ type }: ActivityLogProps)
   }
 
   return (
-    <div className="rounded-lg border bg-card p-2 min-h-[100px] sm:min-h-0">
+    <div className="rounded-lg border bg-card p-2">
       <div className="mb-1 flex items-center justify-between">
         <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
           Последние действия

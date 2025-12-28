@@ -153,6 +153,9 @@ export function IncomePage() {
     try {
       await removeTransaction(deleteId);
       setDeleteId(null);
+      setEditingTransaction(null);
+      setOpen(false);
+      resetForm();
     } catch (err) {
       console.error('Ошибка удаления:', err);
     }
@@ -549,7 +552,12 @@ export function IncomePage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>Удалить</AlertDialogAction>
+            <AlertDialogAction 
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Удалить
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -608,11 +616,12 @@ export function IncomePage() {
                 <Button
                   type="button"
                   variant="destructive"
-                  className="h-9 flex-1 text-xs"
+                  className="h-9 flex-1 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   onClick={() => {
                     if (editingTransaction) {
                       setDeleteId(editingTransaction.id);
                       setEditingTransaction(null);
+                      setOpen(false);
                     }
                   }}
                 >
