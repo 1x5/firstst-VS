@@ -218,7 +218,7 @@ export function ExpensePage() {
   });
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="flex min-h-[calc(100vh-200px)] flex-col space-y-4 sm:space-y-6">
       <StatsCards />
 
       {/* Header */}
@@ -625,8 +625,10 @@ export function ExpensePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Activity Log */}
-      <ActivityLog type="expense" />
+      {/* Activity Log - прижат к низу */}
+      <div className="mt-auto">
+        <ActivityLog type="expense" />
+      </div>
     </div>
   );
 }

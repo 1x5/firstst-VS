@@ -55,34 +55,34 @@ export function ActivityLog({ type }: ActivityLogProps) {
   }
 
   return (
-    <div className="mt-4 rounded-lg border bg-card p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+    <div className="rounded-lg border bg-card p-2">
+      <div className="mb-1 flex items-center justify-between">
+        <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
           Последние действия
         </h3>
         {hasMore && (
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 gap-1 px-2 text-xs"
+            className="h-5 gap-0.5 px-1.5 text-[10px]"
             onClick={() => setExpanded(!expanded)}
           >
             {expanded ? (
               <>
-                <ChevronUp className="h-3 w-3" />
+                <ChevronUp className="h-2.5 w-2.5" />
                 Свернуть
               </>
             ) : (
               <>
-                <ChevronDown className="h-3 w-3" />
-                Показать все ({logs.length})
+                <ChevronDown className="h-2.5 w-2.5" />
+                Все ({logs.length})
               </>
             )}
           </Button>
         )}
       </div>
       
-      <div className="space-y-1.5">
+      <div className="space-y-0.5">
         {visibleLogs.map((log) => (
           <ActivityLogItem key={log.id} log={log} />
         ))}
@@ -97,9 +97,9 @@ function ActivityLogItem({ log }: { log: ActivityLog }) {
   const isDeleted = log.action === 'deleted';
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-sm px-2 py-1 text-xs hover:bg-muted/50">
+    <div className="flex items-center justify-between gap-1.5 rounded-sm px-1.5 py-0.5 text-[10px] hover:bg-muted/50">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <span className={cn(
             'shrink-0 font-medium',
             isDeleted ? 'text-muted-foreground' : 'text-foreground'
@@ -118,10 +118,10 @@ function ActivityLogItem({ log }: { log: ActivityLog }) {
           )}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
         {log.amount !== undefined && (
           <span className={cn(
-            'font-semibold tabular-nums',
+            'font-semibold tabular-nums text-[10px]',
             isDeleted 
               ? 'text-muted-foreground line-through' 
               : isPositive 
@@ -131,7 +131,7 @@ function ActivityLogItem({ log }: { log: ActivityLog }) {
             {isPositive ? '+' : '-'}{formatAmount(log.amount)}
           </span>
         )}
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-[9px] text-muted-foreground">
           {formatTime(log.timestamp)}
         </span>
       </div>
