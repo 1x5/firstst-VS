@@ -218,7 +218,7 @@ export function ExpensePage() {
   });
 
   return (
-    <div className="flex min-h-[calc(100vh-200px)] flex-col space-y-4 sm:space-y-6">
+    <div className="flex flex-1 flex-col space-y-4 sm:space-y-6">
       <StatsCards />
 
       {/* Header */}

@@ -114,8 +114,8 @@ function AppLayout() {
       </header>
 
       {/* Main content */}
-      <main className="container mx-auto px-3 py-3 sm:py-4 lg:py-6">
-        <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+      <main className="container mx-auto flex min-h-[calc(100vh-3.5rem)] flex-col px-3 py-3 sm:py-4 lg:py-6">
+        <div className="flex flex-1 flex-col space-y-3 sm:space-y-4 lg:space-y-6">
           <Routes>
             <Route path="/" element={<ExpensePage />} />
             <Route path="/income" element={<IncomePage />} />
