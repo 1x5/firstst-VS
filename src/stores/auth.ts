@@ -171,8 +171,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     
     try {
+      // Используем production URL для redirect
+      const redirectUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/auth/reset-password`
+        : 'https://uchet1.ru/auth/reset-password';
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: redirectUrl,
       });
 
       if (error) throw error;

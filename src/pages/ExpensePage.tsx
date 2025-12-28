@@ -218,7 +218,7 @@ export function ExpensePage() {
   });
 
   return (
-    <div className="flex flex-1 flex-col space-y-4 sm:space-y-6">
+    <div className="flex min-h-[calc(100vh-3.5rem)] flex-1 flex-col space-y-4 sm:space-y-6">
       <StatsCards />
 
       {/* Header */}
@@ -400,7 +400,7 @@ export function ExpensePage() {
                         setShowCategoryDropdown(true);
                       }}
                       onFocus={() => setShowCategoryDropdown(true)}
-                      className="h-10 flex-1 text-sm"
+                      className="h-10 w-full text-sm"
                     />
                     {categorySearch.trim() && !categories.some(c => c.name.toLowerCase() === categorySearch.toLowerCase()) && (
                       <Button
