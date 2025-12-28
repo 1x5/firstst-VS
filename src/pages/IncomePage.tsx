@@ -87,6 +87,9 @@ export function IncomePage() {
     setCategorySearch(transaction.categoryName || getCategoryName(transaction.category));
     setDate(transaction.date);
     setOpen(true); // Открываем форму редактирования внизу страницы
+    // Закрываем фильтр и график при открытии редактирования
+    setShowFilterPanel(false);
+    setShowChart(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -228,7 +231,12 @@ export function IncomePage() {
             showChart && 'bg-foreground text-background hover:bg-foreground hover:text-background'
           )}
           onClick={() => {
-            setShowChart(!showChart);
+            const newShowChart = !showChart;
+            setShowChart(newShowChart);
+            // Закрываем фильтр при открытии графика
+            if (newShowChart) {
+              setShowFilterPanel(false);
+            }
             // Закрываем режим редактирования при переключении графика
             if (editingTransaction || open) {
               setEditingTransaction(null);
@@ -249,7 +257,12 @@ export function IncomePage() {
             (showFilterPanel || activeFilter !== 'all' || periodFilter !== 'all') && 'bg-foreground text-background hover:bg-foreground hover:text-background'
           )}
           onClick={() => {
-            setShowFilterPanel(!showFilterPanel);
+            const newShowFilterPanel = !showFilterPanel;
+            setShowFilterPanel(newShowFilterPanel);
+            // Закрываем график при открытии фильтра
+            if (newShowFilterPanel) {
+              setShowChart(false);
+            }
             // Закрываем режим редактирования при переключении фильтра
             if (editingTransaction || open) {
               setEditingTransaction(null);
@@ -271,6 +284,9 @@ export function IncomePage() {
               setOpen(false);
             } else {
               setOpen(true);
+              // Закрываем фильтр и график при открытии формы добавления
+              setShowFilterPanel(false);
+              setShowChart(false);
             }
           }}
         >
