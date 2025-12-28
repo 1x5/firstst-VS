@@ -183,7 +183,13 @@ export default function App() {
   const basename = import.meta.env.BASE_URL || '/';
   
   return (
-    <BrowserRouter basename={basename}>
+    <BrowserRouter 
+      basename={basename}
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <AuthenticatedApp />
     </BrowserRouter>
   );
