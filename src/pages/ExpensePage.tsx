@@ -500,7 +500,7 @@ export function ExpensePage() {
       {showChart && <ExpenseChart />}
 
       {/* Transactions list */}
-      <div className="space-y-2">
+      <div className="flex-1 space-y-2">
         <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:text-xs">
           {activeFilter === 'all' ? `Все операции (${filteredTransactions.length})` : `${activeFilter} (${filteredTransactions.length})`}
         </h2>
@@ -626,9 +626,7 @@ export function ExpensePage() {
       </Dialog>
 
       {/* Activity Log - прижат к низу */}
-      <div className="mt-auto">
-        <ActivityLog type="expense" />
-      </div>
+      <ActivityLog type="expense" />
     </div>
   );
 }
