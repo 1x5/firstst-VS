@@ -70,13 +70,24 @@ export const transactionsService = {
 
   // Создать транзакцию
   async create(transaction: NewTransaction, userId: string): Promise<Transaction> {
+    const dbData = toDb(transaction, userId);
+    
+    // Убеждаемся, что category_name не пустое
+    if (!dbData.category_name || dbData.category_name.trim() === '') {
+      dbData.category_name = dbData.category || 'Другое';
+    }
+    
     const { data, error } = await supabase
       .from('transactions')
-      .insert(toDb(transaction, userId))
+      .insert(dbData)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Ошибка создания транзакции:', error);
+      console.error('Данные для вставки:', dbData);
+      throw error;
+    }
     return fromDb(data);
   },
 
