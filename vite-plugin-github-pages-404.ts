@@ -21,7 +21,23 @@ export function githubPages404(): Plugin {
 
       try {
         // Read the built index.html
-        const indexContent = readFileSync(indexPath, 'utf-8');
+        let indexContent = readFileSync(indexPath, 'utf-8');
+        
+        // Add SPA routing script before closing body tag
+        const redirectScript = `
+    <script>
+      // GitHub Pages SPA fallback
+      // Store current path for React Router to handle after load
+      (function() {
+        var path = window.location.pathname;
+        if (path !== '/' && !path.startsWith('/assets/') && !path.endsWith('.js') && !path.endsWith('.css') && !path.endsWith('.json') && !path.endsWith('.svg')) {
+          sessionStorage.setItem('_404_redirect', path + window.location.search + window.location.hash);
+        }
+      })();
+    </script>`;
+        
+        // Insert script before closing body tag
+        indexContent = indexContent.replace('</body>', redirectScript + '\n  </body>');
         
         // Write it as 404.html
         writeFileSync(notFoundPath, indexContent, 'utf-8');
