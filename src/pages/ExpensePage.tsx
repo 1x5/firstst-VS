@@ -557,7 +557,7 @@ export function ExpensePage() {
               <Button
                 type="button"
                 variant="destructive"
-                className="h-9 text-xs"
+                className="h-9 flex-1 text-xs"
                 onClick={() => {
                   if (editingTransaction) {
                     setDeleteId(editingTransaction.id);
