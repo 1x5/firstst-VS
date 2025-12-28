@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { Wallet, Moon, Sun, LogOut, Loader2, Settings } from 'lucide-react';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useThemeStore } from '@/stores/theme';
 import { useAuthStore } from '@/stores/auth';
@@ -133,10 +132,21 @@ function LoadingScreen() {
 function AuthenticatedApp() {
   const { user, isLoading, initialize } = useAuthStore();
   const { isDark } = useThemeStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Handle 404 redirect from GitHub Pages
+  useEffect(() => {
+    const redirectPath = sessionStorage.getItem('_404_redirect');
+    if (redirectPath) {
+      sessionStorage.removeItem('_404_redirect');
+      // Use replace to avoid adding to history
+      navigate(redirectPath, { replace: true });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     if (isDark) {
