@@ -24,6 +24,7 @@ import {
 import { useFinanceStore } from '@/stores/finance';
 import { useCategoriesStore } from '@/stores/categories';
 import { useAuthStore } from '@/stores/auth';
+import { ActivityLog } from '@/components/ActivityLog';
 import type { Transaction } from '@/types/transaction';
 
 export function ExpensePage() {
@@ -624,6 +625,8 @@ export function ExpensePage() {
         </DialogContent>
       </Dialog>
 
+      {/* Activity Log */}
+      <ActivityLog type="expense" />
     </div>
   );
 }

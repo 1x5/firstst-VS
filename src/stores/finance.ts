@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Transaction, TransactionType, NewTransaction, UpdateTransaction } from '@/types/transaction';
 import { transactionsService } from '@/services/transactions';
+import { useActivityLogStore } from '@/stores/activityLog';
 
 interface FinanceState {
   transactions: Transaction[];
@@ -58,6 +59,15 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       set((state) => ({
         transactions: [created, ...state.transactions],
       }));
+      
+      // Логируем действие
+      useActivityLogStore.getState().addLog({
+        type: newTransaction.type,
+        action: 'added',
+        amount: newTransaction.amount,
+        description: newTransaction.description,
+        categoryName: newTransaction.categoryName,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Ошибка сохранения';
       set({ error: message });
@@ -68,6 +78,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   updateTransaction: async (id, transaction, userId) => {
     set({ error: null });
     
+    const previousTransaction = get().transactions.find((t) => t.id === id);
+    
     try {
       const updated = await transactionsService.update(id, transaction, userId);
       set((state) => ({
@@ -75,6 +87,17 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           t.id === id ? updated : t
         ),
       }));
+      
+      // Логируем действие
+      if (previousTransaction) {
+        useActivityLogStore.getState().addLog({
+          type: updated.type,
+          action: 'updated',
+          amount: updated.amount,
+          description: updated.description,
+          categoryName: updated.categoryName,
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Ошибка обновления';
       set({ error: message });
@@ -86,6 +109,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     set({ error: null });
     
     const previousTransactions = get().transactions;
+    const deletedTransaction = previousTransactions.find((t) => t.id === id);
     
     // Оптимистичное обновление
     set((state) => ({
@@ -94,6 +118,17 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     
     try {
       await transactionsService.delete(id);
+      
+      // Логируем действие
+      if (deletedTransaction) {
+        useActivityLogStore.getState().addLog({
+          type: deletedTransaction.type,
+          action: 'deleted',
+          amount: deletedTransaction.amount,
+          description: deletedTransaction.description,
+          categoryName: deletedTransaction.categoryName,
+        });
+      }
     } catch (error) {
       // Откатываем при ошибке
       set({ transactions: previousTransactions });
