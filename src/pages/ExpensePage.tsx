@@ -86,7 +86,7 @@ export function ExpensePage() {
     setCategory(transaction.category);
     setCategorySearch(transaction.categoryName || getCategoryName(transaction.category));
     setDate(transaction.date);
-    setOpen(true);
+    setOpen(false); // Закрываем форму добавления, чтобы открылся диалог редактирования
   };
 
 
@@ -554,19 +554,21 @@ export function ExpensePage() {
             )}
             <div className="flex gap-2">
               <Button type="submit" className="h-9 flex-1 text-xs">Сохранить</Button>
-              <Button
-                type="button"
-                variant="destructive"
-                className="h-9 flex-1 text-xs"
-                onClick={() => {
-                  if (editingTransaction) {
-                    setDeleteId(editingTransaction.id);
-                    setEditingTransaction(null);
-                  }
-                }}
-              >
-                Удалить
-              </Button>
+              {editingTransaction && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="h-9 flex-1 text-xs"
+                  onClick={() => {
+                    if (editingTransaction) {
+                      setDeleteId(editingTransaction.id);
+                      setEditingTransaction(null);
+                    }
+                  }}
+                >
+                  Удалить
+                </Button>
+              )}
             </div>
           </form>
         </DialogContent>
