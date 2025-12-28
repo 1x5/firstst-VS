@@ -191,7 +191,55 @@ export function SettingsPage() {
       await useCategoriesStore.getState().loadCategories(user.id);
       await useFinanceStore.getState().loadTransactions();
       
-      setDataText('');
+      // Обновляем текст в редакторе с новыми данными
+      // Используем setTimeout чтобы дать время стейтам обновиться через Zustand
+      setTimeout(() => {
+        // Получаем свежие данные из стейтов
+        const freshCategories = useCategoriesStore.getState().categories || [];
+        const freshTransactions = useFinanceStore.getState().transactions || [];
+        
+        // Генерируем текст из свежих данных
+        const lines: string[] = [];
+        
+        lines.push('#КАТЕГОРИИ');
+        
+        const incomeCategories = freshCategories.filter(c => c.type === 'income' && !c.id.startsWith('default-'));
+        if (incomeCategories.length > 0) {
+          lines.push('Доход:');
+          for (const cat of incomeCategories) {
+            lines.push(`-${cat.name}`);
+          }
+          lines.push('');
+        }
+        
+        const expenseCategories = freshCategories.filter(c => c.type === 'expense' && !c.id.startsWith('default-'));
+        if (expenseCategories.length > 0) {
+          lines.push('Расход:');
+          for (const cat of expenseCategories) {
+            lines.push(`-${cat.name}`);
+          }
+          lines.push('');
+        }
+        
+        lines.push('#ТРАНЗАКЦИИ');
+        
+        const sortedTransactions = [...freshTransactions].sort((a, b) => 
+          new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime()
+        );
+        
+        for (const t of sortedTransactions) {
+          const catName = freshCategories.find(c => c.id === t.category)?.name || t.categoryName || t.category;
+          const sign = t.type === 'income' ? '+' : '-';
+          const amount = t.amount.toLocaleString('ru-RU').replace(/,/g, ' ');
+          const date = new Date(t.createdAt || t.date);
+          const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+          const desc = t.description ? ` ${t.description}` : '';
+          lines.push(`${sign}${amount} ${catName}${desc} ${dateStr}`);
+        }
+        
+        setDataText(lines.join('\n'));
+      }, 300);
+      
       setDataSuccess('БД очищена. Созданы стандартные категории и тестовая транзакция');
       setShowDeleteConfirm(false);
     } catch (err) {
@@ -594,48 +642,51 @@ export function SettingsPage() {
             </div>
           )}
 
-          <Button onClick={saveData} disabled={savingData || !dataText.trim()} className="w-full gap-2">
-            <Save className="h-4 w-4" />
-            {savingData ? 'Сохранение...' : 'Сохранить'}
-          </Button>
-
-          <div className="pt-4 border-t">
-            {!showDeleteConfirm ? (
+          {!showDeleteConfirm ? (
+            <div className="flex gap-2">
+              <Button 
+                onClick={saveData} 
+                disabled={savingData || !dataText.trim()} 
+                className="flex-1 gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {savingData ? 'Сохранение...' : 'Сохранить'}
+              </Button>
               <Button
                 variant="destructive"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="w-full gap-2"
+                className="flex-1 gap-2"
               >
                 <Trash2 className="h-4 w-4" />
-                Удалить все данные
+                Удалить
               </Button>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-center text-destructive font-medium">
-                  Вы уверены? Все транзакции и категории будут удалены!
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1"
-                    disabled={deleting}
-                  >
-                    Отмена
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={deleteAllData}
-                    className="flex-1 gap-2"
-                    disabled={deleting}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {deleting ? 'Удаление...' : 'Удалить'}
-                  </Button>
-                </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-center text-destructive font-medium">
+                Вы уверены? Все транзакции и категории будут удалены!
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1"
+                  disabled={deleting}
+                >
+                  Отмена
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={deleteAllData}
+                  className="flex-1 gap-2"
+                  disabled={deleting}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {deleting ? 'Удаление...' : 'Удалить'}
+                </Button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

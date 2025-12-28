@@ -1,9 +1,10 @@
+import { memo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { useFinanceStore, selectTotalIncome, selectTotalExpense } from '@/stores/finance';
 import { cn } from '@/lib/utils';
 
-export function StatsCards() {
+export const StatsCards = memo(function StatsCards() {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -76,5 +77,5 @@ export function StatsCards() {
       })}
     </div>
   );
-}
+});
 

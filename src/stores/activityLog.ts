@@ -15,7 +15,8 @@ interface ActivityLogState {
   logs: ActivityLog[];
   addLog: (log: Omit<ActivityLog, 'id' | 'timestamp'>) => void;
   clearLogs: () => void;
-  getLogsByType: (type: 'income' | 'expense') => ActivityLog[];
+  getLogsByType: (type: 'income' | 'expense' | 'all') => ActivityLog[];
+  getAllLogs: () => ActivityLog[];
 }
 
 export const useActivityLogStore = create<ActivityLogState>()(
@@ -40,7 +41,14 @@ export const useActivityLogStore = create<ActivityLogState>()(
       },
       
       getLogsByType: (type) => {
+        if (type === 'all') {
+          return get().logs;
+        }
         return get().logs.filter((log) => log.type === type);
+      },
+      
+      getAllLogs: () => {
+        return get().logs;
       },
     }),
     {

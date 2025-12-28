@@ -625,7 +625,7 @@ export function IncomePage() {
       </Dialog>
 
       {/* Activity Log - прижат к низу */}
-      <ActivityLog type="income" />
+      <ActivityLog type="all" />
     </div>
   );
 }

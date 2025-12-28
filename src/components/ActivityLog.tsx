@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useActivityLogStore, type ActivityLog } from '@/stores/activityLog';
 import { cn } from '@/lib/utils';
 
 interface ActivityLogProps {
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'all';
 }
 
 const actionLabels = {
@@ -44,7 +44,7 @@ const formatTime = (timestamp: number) => {
   });
 };
 
-export function ActivityLog({ type }: ActivityLogProps) {
+export const ActivityLog = memo(function ActivityLog({ type }: ActivityLogProps) {
   const [expanded, setExpanded] = useState(false);
   const logs = useActivityLogStore((state) => state.getLogsByType(type));
   const visibleLogs = expanded ? logs.slice(0, 13) : logs.slice(0, 3);
@@ -89,9 +89,9 @@ export function ActivityLog({ type }: ActivityLogProps) {
       </div>
     </div>
   );
-}
+});
 
-function ActivityLogItem({ log }: { log: ActivityLog }) {
+const ActivityLogItem = memo(function ActivityLogItem({ log }: { log: ActivityLog }) {
   const actionLabel = actionLabels[log.action];
   const isPositive = log.type === 'income';
   const isDeleted = log.action === 'deleted';
@@ -137,5 +137,5 @@ function ActivityLogItem({ log }: { log: ActivityLog }) {
       </div>
     </div>
   );
-}
+});
 

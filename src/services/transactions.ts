@@ -36,13 +36,23 @@ const toDb = (transaction: NewTransaction | UpdateTransaction, userId: string) =
 });
 
 export const transactionsService = {
-  // Получить все транзакции пользователя
-  async getAll(): Promise<Transaction[]> {
-    const { data, error } = await supabase
+  // Получить все транзакции пользователя (с опциональной пагинацией)
+  async getAll(limit?: number, offset?: number): Promise<Transaction[]> {
+    let query = supabase
       .from('transactions')
       .select('*')
       .order('date', { ascending: false })
       .order('created_at', { ascending: false });
+
+    // Добавляем пагинацию только если указаны параметры
+    if (limit !== undefined) {
+      query = query.limit(limit);
+    }
+    if (offset !== undefined) {
+      query = query.range(offset, offset + (limit || 1000) - 1);
+    }
+
+    const { data, error } = await query;
 
     // Если таблица не существует (404), возвращаем пустой массив
     if (error) {
@@ -53,6 +63,21 @@ export const transactionsService = {
       throw error;
     }
     return (data || []).map(fromDb);
+  },
+
+  // Получить количество транзакций пользователя
+  async getCount(): Promise<number> {
+    const { count, error } = await supabase
+      .from('transactions')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        return 0;
+      }
+      throw error;
+    }
+    return count || 0;
   },
 
   // Получить транзакции за период
@@ -126,25 +151,83 @@ export const transactionsService = {
     if (error) throw error;
   },
 
-  // Подписка на изменения (realtime)
-  subscribeToChanges(userId: string, callback: (transactions: Transaction[]) => void) {
-    return supabase
-      .channel('transactions-changes')
+  // Подписка на изменения (realtime) - оптимизированная версия
+  subscribeToChanges(
+    userId: string, 
+    callback: (transactions: Transaction[]) => void,
+    onTransactionChange?: (transaction: Transaction, event: 'INSERT' | 'UPDATE' | 'DELETE') => void
+  ) {
+    const channel = supabase
+      .channel(`transactions-changes-${userId}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'transactions',
           filter: `user_id=eq.${userId}`,
         },
-        async () => {
-          // При любом изменении перезагружаем все транзакции
-          const transactions = await this.getAll();
-          callback(transactions);
+        async (payload) => {
+          // При добавлении новой транзакции загружаем только её
+          if (payload.new) {
+            const newTransaction = fromDb(payload.new as TransactionRow);
+            if (onTransactionChange) {
+              onTransactionChange(newTransaction, 'INSERT');
+            } else {
+              // Fallback: перезагружаем все (для обратной совместимости)
+              const transactions = await this.getAll();
+              callback(transactions);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${userId}`,
+        },
+        async (payload) => {
+          // При обновлении загружаем только изменённую транзакцию
+          if (payload.new) {
+            const updatedTransaction = fromDb(payload.new as TransactionRow);
+            if (onTransactionChange) {
+              onTransactionChange(updatedTransaction, 'UPDATE');
+            } else {
+              // Fallback: перезагружаем все
+              const transactions = await this.getAll();
+              callback(transactions);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${userId}`,
+        },
+        async (payload) => {
+          // При удалении используем старые данные
+          if (payload.old) {
+            const deletedTransaction = fromDb(payload.old as TransactionRow);
+            if (onTransactionChange) {
+              onTransactionChange(deletedTransaction, 'DELETE');
+            } else {
+              // Fallback: перезагружаем все
+              const transactions = await this.getAll();
+              callback(transactions);
+            }
+          }
         }
       )
       .subscribe();
+
+    return channel;
   },
 };
 

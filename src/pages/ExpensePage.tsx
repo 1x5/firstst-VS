@@ -626,7 +626,7 @@ export function ExpensePage() {
       </Dialog>
 
       {/* Activity Log - прижат к низу */}
-      <ActivityLog type="expense" />
+      <ActivityLog type="all" />
     </div>
   );
 }
