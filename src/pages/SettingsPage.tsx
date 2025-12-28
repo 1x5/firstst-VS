@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useFinanceStore } from '@/stores/finance';
 import { useCategoriesStore } from '@/stores/categories';
 import { useAppearanceStore } from '@/stores/appearance';
+import { useActivityLogStore } from '@/stores/activityLog';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
@@ -187,6 +188,9 @@ export function SettingsPage() {
 
       if (createTransError) throw createTransError;
 
+      // Очищаем логи активности
+      useActivityLogStore.getState().clearLogs();
+      
       // Перезагружаем данные
       await useCategoriesStore.getState().loadCategories(user.id);
       await useFinanceStore.getState().loadTransactions();
