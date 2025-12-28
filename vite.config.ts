@@ -1,10 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { githubPages404 } from './vite-plugin-github-pages-404'
 
 export default defineConfig({
   base: '/',
-  plugins: [react()],
+  plugins: [
+    react(),
+    githubPages404(), // Automatically creates 404.html for GitHub Pages SPA routing
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
