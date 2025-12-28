@@ -227,7 +227,15 @@ export function IncomePage() {
             'h-8 w-8',
             showChart && 'bg-foreground text-background hover:bg-foreground hover:text-background'
           )}
-          onClick={() => setShowChart(!showChart)}
+          onClick={() => {
+            setShowChart(!showChart);
+            // Закрываем режим редактирования при переключении графика
+            if (editingTransaction || open) {
+              setEditingTransaction(null);
+              setOpen(false);
+              resetForm();
+            }
+          }}
           title="Диаграмма доходов"
         >
           <PieChart className="h-4 w-4" />
@@ -240,7 +248,15 @@ export function IncomePage() {
             'h-8 w-8',
             (showFilterPanel || activeFilter !== 'all' || periodFilter !== 'all') && 'bg-foreground text-background hover:bg-foreground hover:text-background'
           )}
-          onClick={() => setShowFilterPanel(!showFilterPanel)}
+          onClick={() => {
+            setShowFilterPanel(!showFilterPanel);
+            // Закрываем режим редактирования при переключении фильтра
+            if (editingTransaction || open) {
+              setEditingTransaction(null);
+              setOpen(false);
+              resetForm();
+            }
+          }}
           title="Фильтры"
         >
           <Filter className="h-4 w-4" />
