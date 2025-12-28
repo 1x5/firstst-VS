@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Wallet, Moon, Sun, LogOut, Loader2, Settings } from 'lucide-react';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 
 function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isDark, toggle } = useThemeStore();
   const { user, signOut } = useAuthStore();
   const { appName, showLogoIcon } = useAppearanceStore();
@@ -72,7 +73,13 @@ function AppLayout() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => navigate('/settings')}
+                onClick={() => {
+                  if (location.pathname === '/settings') {
+                    navigate('/');
+                  } else {
+                    navigate('/settings');
+                  }
+                }}
                 className="h-7 w-7"
                 title="Настройки"
               >

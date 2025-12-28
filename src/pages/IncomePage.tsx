@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Filter, PieChart } from 'lucide-react';
+import { Plus, Filter, PieChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatsCards } from '@/components/StatsCards';
@@ -556,7 +556,7 @@ export function IncomePage() {
               <Button
                 type="button"
                 variant="destructive"
-                className="h-10 w-10 p-0"
+                className="h-9 text-xs"
                 onClick={() => {
                   if (editingTransaction) {
                     setDeleteId(editingTransaction.id);
@@ -564,7 +564,7 @@ export function IncomePage() {
                   }
                 }}
               >
-                <Trash2 className="h-4 w-4" />
+                Удалить
               </Button>
             </div>
           </form>
