@@ -17,6 +17,11 @@ interface FinanceState {
   clearAll: () => void;
   setOnline: (isOnline: boolean) => void;
   clearError: () => void;
+  
+  // Optimistic updates для realtime
+  addTransactionOptimistic: (transaction: Transaction) => void;
+  updateTransactionOptimistic: (id: string, transaction: Transaction) => void;
+  removeTransactionOptimistic: (id: string) => void;
 }
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
@@ -147,6 +152,27 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   },
   
   clearError: () => set({ error: null }),
+  
+  // Optimistic updates для realtime
+  addTransactionOptimistic: (transaction) => {
+    set((state) => ({
+      transactions: [transaction, ...state.transactions],
+    }));
+  },
+  
+  updateTransactionOptimistic: (id, transaction) => {
+    set((state) => ({
+      transactions: state.transactions.map((t) =>
+        t.id === id ? transaction : t
+      ),
+    }));
+  },
+  
+  removeTransactionOptimistic: (id) => {
+    set((state) => ({
+      transactions: state.transactions.filter((t) => t.id !== id),
+    }));
+  },
 }));
 
 // Селекторы (с защитой от undefined)

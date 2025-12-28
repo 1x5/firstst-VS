@@ -1,8 +1,10 @@
 import { supabase } from '@/lib/supabase';
 import type { Transaction, NewTransaction, UpdateTransaction } from '@/types/transaction';
 import type { Database } from '@/types/supabase';
+import { useFinanceStore } from '@/stores/finance';
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row'];
+type TransactionInsert = Database['public']['Tables']['transactions']['Insert'];
 type TransactionUpdate = Database['public']['Tables']['transactions']['Update'];
 
 // Преобразование из формата БД в формат приложения
@@ -22,7 +24,7 @@ const fromDb = (row: TransactionRow): Transaction => ({
 });
 
 // Преобразование в формат БД
-const toDb = (transaction: NewTransaction | UpdateTransaction, userId: string) => ({
+const toDb = (transaction: NewTransaction | UpdateTransaction, userId: string): TransactionInsert => ({
   user_id: userId,
   type: transaction.type,
   amount: transaction.amount,
@@ -36,7 +38,7 @@ const toDb = (transaction: NewTransaction | UpdateTransaction, userId: string) =
 });
 
 export const transactionsService = {
-  // Получить все транзакции пользователя (с опциональной пагинацией)
+  // Получить все транзакции пользователя с пагинацией
   async getAll(limit?: number, offset?: number): Promise<Transaction[]> {
     let query = supabase
       .from('transactions')
@@ -44,17 +46,13 @@ export const transactionsService = {
       .order('date', { ascending: false })
       .order('created_at', { ascending: false });
 
-    // Добавляем пагинацию только если указаны параметры
-    if (limit !== undefined) {
-      query = query.limit(limit);
-    }
-    if (offset !== undefined) {
-      query = query.range(offset, offset + (limit || 1000) - 1);
+    if (limit !== undefined && offset !== undefined) {
+      query = query.range(offset, offset + limit - 1);
     }
 
     const { data, error } = await query;
 
-    // Если таблица не существует (404), возвращаем пустой массив
+    // Если таблица не существует (42P01), возвращаем пустой массив
     if (error) {
       if (error.code === '42P01' || error.message?.includes('does not exist')) {
         console.warn('Таблица transactions не существует. Работаем в локальном режиме.');
@@ -65,18 +63,13 @@ export const transactionsService = {
     return (data || []).map(fromDb);
   },
 
-  // Получить количество транзакций пользователя
+  // Получить количество транзакций
   async getCount(): Promise<number> {
     const { count, error } = await supabase
       .from('transactions')
       .select('*', { count: 'exact', head: true });
 
-    if (error) {
-      if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        return 0;
-      }
-      throw error;
-    }
+    if (error) throw error;
     return count || 0;
   },
 
@@ -96,15 +89,15 @@ export const transactionsService = {
   // Создать транзакцию
   async create(transaction: NewTransaction, userId: string): Promise<Transaction> {
     const dbData = toDb(transaction, userId);
-    
+
     // Убеждаемся, что category_name не пустое
     if (!dbData.category_name || dbData.category_name.trim() === '') {
       dbData.category_name = dbData.category || 'Другое';
     }
-    
+
     const { data, error } = await supabase
       .from('transactions')
-      .insert(dbData)
+      .insert(dbData as any)
       .select()
       .single();
 
@@ -118,8 +111,8 @@ export const transactionsService = {
 
   // Обновить транзакцию
   async update(id: string, transaction: UpdateTransaction, userId: string): Promise<Transaction> {
-    const updateData: TransactionUpdate = {};
-    
+    const updateData: Partial<TransactionUpdate> = {};
+
     if (transaction.type !== undefined) updateData.type = transaction.type;
     if (transaction.amount !== undefined) updateData.amount = transaction.amount;
     if (transaction.category !== undefined) updateData.category = transaction.category;
@@ -132,7 +125,7 @@ export const transactionsService = {
 
     const { data, error } = await supabase
       .from('transactions')
-      .update(updateData)
+      .update(updateData as any)
       .eq('id', id)
       .select()
       .single();
@@ -151,83 +144,42 @@ export const transactionsService = {
     if (error) throw error;
   },
 
-  // Подписка на изменения (realtime) - оптимизированная версия
-  subscribeToChanges(
-    userId: string, 
-    callback: (transactions: Transaction[]) => void,
-    onTransactionChange?: (transaction: Transaction, event: 'INSERT' | 'UPDATE' | 'DELETE') => void
-  ) {
-    const channel = supabase
-      .channel(`transactions-changes-${userId}`)
+  // Подписка на изменения (realtime)
+  subscribeToChanges(_userId: string) {
+    return supabase
+      .channel('transactions-changes')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'transactions',
           filter: `user_id=eq.${userId}`,
         },
-        async (payload) => {
-          // При добавлении новой транзакции загружаем только её
-          if (payload.new) {
-            const newTransaction = fromDb(payload.new as TransactionRow);
-            if (onTransactionChange) {
-              onTransactionChange(newTransaction, 'INSERT');
-            } else {
-              // Fallback: перезагружаем все (для обратной совместимости)
-              const transactions = await this.getAll();
-              callback(transactions);
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'transactions',
-          filter: `user_id=eq.${userId}`,
-        },
-        async (payload) => {
-          // При обновлении загружаем только изменённую транзакцию
-          if (payload.new) {
-            const updatedTransaction = fromDb(payload.new as TransactionRow);
-            if (onTransactionChange) {
-              onTransactionChange(updatedTransaction, 'UPDATE');
-            } else {
-              // Fallback: перезагружаем все
-              const transactions = await this.getAll();
-              callback(transactions);
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'transactions',
-          filter: `user_id=eq.${userId}`,
-        },
-        async (payload) => {
-          // При удалении используем старые данные
-          if (payload.old) {
-            const deletedTransaction = fromDb(payload.old as TransactionRow);
-            if (onTransactionChange) {
-              onTransactionChange(deletedTransaction, 'DELETE');
-            } else {
-              // Fallback: перезагружаем все
-              const transactions = await this.getAll();
-              callback(transactions);
-            }
+        (payload) => {
+          const financeStore = useFinanceStore.getState();
+          const newTransaction = payload.new ? fromDb(payload.new as TransactionRow) : null;
+          const oldTransaction = payload.old ? fromDb(payload.old as TransactionRow) : null;
+
+          switch (payload.eventType) {
+            case 'INSERT':
+              if (newTransaction) {
+                financeStore.addTransactionOptimistic(newTransaction);
+              }
+              break;
+            case 'UPDATE':
+              if (newTransaction) {
+                financeStore.updateTransactionOptimistic(newTransaction.id, newTransaction);
+              }
+              break;
+            case 'DELETE':
+              if (oldTransaction) {
+                financeStore.removeTransactionOptimistic(oldTransaction.id);
+              }
+              break;
           }
         }
       )
       .subscribe();
-
-    return channel;
   },
 };
-

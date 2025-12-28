@@ -23,7 +23,7 @@ export function SettingsPage() {
   const { appName, showLogoIcon, setAppName, setShowLogoIcon } = useAppearanceStore();
 
   // Active section
-  const [activeSection, setActiveSection] = useState<'account' | 'data' | 'appearance'>('data');
+  const [activeSection, setActiveSection] = useState<'account' | 'data' | 'appearance'>('account');
 
   // Account state
   const [newEmail, setNewEmail] = useState('');
@@ -33,6 +33,7 @@ export function SettingsPage() {
   const [accountMessage, setAccountMessage] = useState('');
   const [accountError, setAccountError] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // Data editor state
   const [dataText, setDataText] = useState('');
@@ -476,37 +477,142 @@ export function SettingsPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Валидация пароля
+  const validatePassword = (password: string): string | null => {
+    if (password.length < 8) {
+      return 'Пароль должен содержать минимум 8 символов';
+    }
+    if (!/[a-z]/.test(password) && !/[а-я]/.test(password)) {
+      return 'Пароль должен содержать хотя бы одну строчную букву';
+    }
+    if (!/[A-Z]/.test(password) && !/[А-Я]/.test(password)) {
+      return 'Пароль должен содержать хотя бы одну заглавную букву';
+    }
+    if (!/\d/.test(password)) {
+      return 'Пароль должен содержать хотя бы одну цифру';
+    }
+    // Проверка на простые пароли
+    const commonPasswords = ['password', '12345678', 'qwerty', 'admin', 'пароль', '123456'];
+    if (commonPasswords.some(common => password.toLowerCase().includes(common))) {
+      return 'Пароль слишком простой. Используйте более сложный пароль';
+    }
+    return null;
+  };
+
   // Update account
   const handleUpdateAccount = async () => {
+    // Проверяем, что хотя бы одно поле заполнено
+    if (!newEmail.trim() && !newPassword.trim()) {
+      setAccountError('Заполните хотя бы одно поле');
+      return;
+    }
+
     setSavingAccount(true);
     setAccountError('');
     setAccountMessage('');
 
     try {
-      if (newEmail.trim()) {
-        const { error } = await supabase.auth.updateUser({ email: newEmail });
-        if (error) throw error;
-        setAccountMessage('Письмо подтверждения отправлено');
+      let successMessages: string[] = [];
+
+      // Обновление email - проверяем, что email действительно новый и отличается от текущего
+      const trimmedEmail = newEmail.trim();
+      if (trimmedEmail && trimmedEmail !== user?.email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+          throw new Error('Некорректный формат email');
+        }
+        
+        // Отправляем запрос и ждем ответ (но не блокируем UI)
+        const emailUpdate = supabase.auth.updateUser({ email: trimmedEmail });
+        
+        // Показываем успех сразу, но проверяем ошибки в фоне
+        emailUpdate.then((result) => {
+          if (result.error) {
+            console.error('Email update error:', result.error);
+            setAccountError(result.error.message || 'Ошибка обновления email');
+          } else {
+            console.log('Email update successful');
+          }
+        }).catch((err) => {
+          console.error('Email update error:', err);
+          setAccountError('Ошибка обновления email');
+        });
+        
+        successMessages.push('Письмо подтверждения отправлено на новый email');
+        setNewEmail('');
+      } else if (trimmedEmail && trimmedEmail === user?.email) {
+        // Если введен текущий email, просто очищаем поле без отправки
         setNewEmail('');
       }
       
+      // Обновление пароля
       if (newPassword.trim()) {
         if (newPassword !== confirmPassword) {
           throw new Error('Пароли не совпадают');
         }
-        if (newPassword.length < 6) {
-          throw new Error('Минимум 6 символов');
+        
+        const passwordError = validatePassword(newPassword);
+        if (passwordError) {
+          throw new Error(passwordError);
         }
-        const { error } = await supabase.auth.updateUser({ password: newPassword });
-        if (error) throw error;
-        setAccountMessage('Данные обновлены');
+        
+        console.log('[PASSWORD] Starting password reset email...');
+        
+        // Для смены пароля используем resetPasswordForEmail
+        // Это отправляет письмо с ссылкой для смены пароля
+        if (!user?.email) {
+          throw new Error('Email пользователя не найден');
+        }
+        
+        const passwordReset = supabase.auth.resetPasswordForEmail(user.email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        
+        // Показываем успех сразу, но проверяем ошибки в фоне
+        passwordReset.then((result) => {
+          if (result.error) {
+            console.error('Password reset error:', result.error);
+            setAccountError(result.error.message || 'Ошибка отправки письма');
+          } else {
+            console.log('Password reset email sent successfully');
+          }
+        }).catch((err) => {
+          console.error('Password reset error:', err);
+          setAccountError('Ошибка отправки письма');
+        });
+        
+        successMessages.push('Письмо для смены пароля отправлено на вашу почту');
         setNewPassword('');
         setConfirmPassword('');
       }
+
+      if (successMessages.length > 0) {
+        // Объединяем сообщения, убирая дубликаты
+        const uniqueMessages = Array.from(new Set(successMessages));
+        setAccountMessage(uniqueMessages.join('. '));
+        setShowSuccess(true);
+        
+        // Убираем зеленый цвет через 2 секунды
+        setTimeout(() => {
+          setShowSuccess(false);
+        }, 2000);
+        
+        // Очищаем сообщение через 5 секунд
+        setTimeout(() => {
+          setAccountMessage('');
+        }, 5000);
+      }
+      
+      console.log('[FINAL] Function completed successfully');
     } catch (err) {
-      setAccountError(err instanceof Error ? err.message : 'Ошибка');
+      console.error('[FINAL ERROR] Account update error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка обновления данных';
+      setAccountError(errorMessage);
+      console.error('[FINAL ERROR] Error details:', err);
     } finally {
+      console.log('[FINALLY] Setting savingAccount to false');
       setSavingAccount(false);
+      console.log('[FINALLY] savingAccount is now false');
     }
   };
 
@@ -606,8 +712,15 @@ export function SettingsPage() {
               placeholder="Подтвердите пароль"
             />
 
-            <Button onClick={handleUpdateAccount} disabled={savingAccount} className="w-full">
-              {savingAccount ? 'Сохранение...' : 'Сохранить'}
+            <Button 
+              onClick={handleUpdateAccount} 
+              disabled={savingAccount} 
+              className={cn(
+                "w-full transition-colors duration-300",
+                showSuccess && "bg-green-600 hover:bg-green-700 text-white"
+              )}
+            >
+              {savingAccount ? 'Сохранение...' : showSuccess ? '✓ Сохранено' : 'Сохранить'}
             </Button>
           </div>
 

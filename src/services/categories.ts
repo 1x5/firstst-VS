@@ -3,6 +3,8 @@ import type { TransactionType } from '@/types/transaction';
 import type { Database } from '@/types/supabase';
 
 type CategoryRow = Database['public']['Tables']['categories']['Row'];
+type CategoryInsert = Database['public']['Tables']['categories']['Insert'];
+type CategoryUpdate = Database['public']['Tables']['categories']['Update'];
 
 export interface Category {
   id: string;
@@ -67,13 +69,15 @@ export const categoriesService = {
 
   // Создать категорию
   async create(category: NewCategory, userId: string): Promise<Category> {
+    const insertData: CategoryInsert = {
+      user_id: userId,
+      name: category.name,
+      type: category.type,
+    };
+    
     const { data, error } = await supabase
       .from('categories')
-      .insert({
-        user_id: userId,
-        name: category.name,
-        type: category.type,
-      })
+      .insert(insertData as any)
       .select()
       .single();
 
@@ -83,15 +87,15 @@ export const categoriesService = {
 
   // Создать несколько категорий (для инициализации)
   async createMany(categories: NewCategory[], userId: string): Promise<Category[]> {
+    const insertData: CategoryInsert[] = categories.map((cat) => ({
+      user_id: userId,
+      name: cat.name,
+      type: cat.type,
+    }));
+    
     const { data, error } = await supabase
       .from('categories')
-      .insert(
-        categories.map((cat) => ({
-          user_id: userId,
-          name: cat.name,
-          type: cat.type,
-        }))
-      )
+      .insert(insertData as any)
       .select();
 
     if (error) throw error;
@@ -102,7 +106,7 @@ export const categoriesService = {
   async update(id: string, name: string): Promise<Category> {
     const { data, error } = await supabase
       .from('categories')
-      .update({ name })
+      .update({ name } as any)
       .eq('id', id)
       .select()
       .single();
