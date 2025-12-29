@@ -327,23 +327,25 @@ export function AuthPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-sm">
-              Email
-            </Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-11 pl-10"
-                disabled={isLoading}
-              />
+          {(mode !== 'reset') && (
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-sm">
+                Email
+              </Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="email@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11 pl-10"
+                  disabled={isLoading}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {(mode !== 'forgot' && mode !== 'reset') && (
             <div className="space-y-1.5">
@@ -366,6 +368,24 @@ export function AuthPage() {
           )}
 
           {(mode === 'register' || mode === 'reset') && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-sm">
+                  Пароль
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-11 pl-10"
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
             <div className="space-y-1.5">
               <Label htmlFor="confirmPassword" className="text-sm">
                 Подтвердите пароль
@@ -383,6 +403,7 @@ export function AuthPage() {
                 />
               </div>
             </div>
+            </>
           )}
 
           {displayError && (
