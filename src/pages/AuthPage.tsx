@@ -147,21 +147,23 @@ export function AuthPage() {
           hasRefreshToken: !!refreshToken,
           refreshTokenLength: refreshToken?.length || 0,
           error,
-          errorDescription
+          errorDescription,
+          allParams: Array.from(hashParams.keys())
         });
-          
-          // Проверяем на ошибки в URL
-          if (error) {
-            if (import.meta.env.DEV) {
-              console.error('[reset-password] Error in URL:', error, errorDescription);
-            }
-            setLocalError(translateError(errorDescription || error) || 'Ошибка обработки ссылки');
-            const newUrl = window.location.pathname + window.location.search;
-            window.history.replaceState(null, '', newUrl);
-            return;
-          }
-          
-          if (type === 'recovery' && accessToken) {
+        
+        // Проверяем на ошибки в URL
+        if (error) {
+          console.error('[reset-password] Error in URL:', error, errorDescription);
+          setLocalError(translateError(errorDescription || error) || 'Ошибка обработки ссылки');
+          const newUrl = window.location.pathname + window.location.search;
+          window.history.replaceState(null, '', newUrl);
+          return;
+        }
+        
+        // Если есть access_token, обрабатываем как recovery, даже если type отсутствует
+        // (Supabase иногда не добавляет type=recovery в hash для recovery токенов)
+        if (accessToken && (type === 'recovery' || !type)) {
+          console.log('[reset-password] Processing as recovery token (type:', type || 'missing', ')');
             if (import.meta.env.DEV) {
               console.log('[reset-password] Setting session from recovery token...');
             }
@@ -190,46 +192,50 @@ export function AuthPage() {
               });
             }
 
-            // Проверяем, что сессия установлена
-            if (sessionData?.session) {
-              // Переключаемся в режим сброса пароля ПЕРЕД очисткой hash
-              setMode('reset');
-              if (import.meta.env.DEV) {
-                console.log('[reset-password] Mode set to "reset"');
-                console.log('[reset-password] Current user after setSession:', sessionData.session.user.id);
-                console.log('[reset-password] Session type:', sessionData.session.user.app_metadata?.provider);
-              }
-              // Очищаем hash из URL БЕЗ перезагрузки страницы
-              // Используем replaceState вместо navigate, чтобы избежать 404
-              const newUrl = window.location.pathname + window.location.search;
-              window.history.replaceState(null, '', newUrl);
-              
-              // Очищаем сохраненный hash из sessionStorage
-              if (typeof window !== 'undefined') {
-                sessionStorage.removeItem('_reset_password_hash');
-              }
-              
-              if (import.meta.env.DEV) {
-                console.log('[reset-password] ===== CALLBACK HANDLING SUCCESS =====');
-                console.log('[reset-password] URL cleaned, ready for password reset form');
-              }
-            } else {
-              if (import.meta.env.DEV) {
-                console.error('[reset-password] Session data is missing!');
-              }
-              setLocalError('Не удалось установить сессию');
-              const newUrl = window.location.pathname + window.location.search;
-              window.history.replaceState(null, '', newUrl);
+          // Проверяем, что сессия установлена
+          if (sessionData?.session) {
+            console.log('[reset-password] Session is valid, setting mode to "reset"');
+            // Переключаемся в режим сброса пароля ПЕРЕД очисткой hash
+            setMode('reset');
+            console.log('[reset-password] Mode set to "reset"');
+            console.log('[reset-password] Current user after setSession:', sessionData.session.user.id);
+            console.log('[reset-password] Session type:', sessionData.session.user.app_metadata?.provider);
+            
+            // Очищаем hash из URL БЕЗ перезагрузки страницы
+            // Используем replaceState вместо navigate, чтобы избежать 404
+            const newUrl = window.location.pathname + window.location.search;
+            window.history.replaceState(null, '', newUrl);
+            console.log('[reset-password] URL cleaned:', newUrl);
+            
+            // Очищаем сохраненный hash из sessionStorage
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('_reset_password_hash');
+              console.log('[reset-password] Removed hash from sessionStorage');
             }
+            
+            console.log('[reset-password] ===== CALLBACK HANDLING SUCCESS =====');
+            console.log('[reset-password] URL cleaned, ready for password reset form');
           } else {
-            if (import.meta.env.DEV) {
-              console.warn('[reset-password] Invalid recovery params:', { type, hasAccessToken: !!accessToken });
-            }
-            // Если нет recovery токена, но есть hash, возможно это ошибка
-            if (location.hash && !type) {
-              setLocalError('Неверная ссылка для сброса пароля');
-            }
+            console.error('[reset-password] Session data is missing!');
+            console.error('[reset-password] sessionData:', sessionData);
+            setLocalError('Не удалось установить сессию');
+            const newUrl = window.location.pathname + window.location.search;
+            window.history.replaceState(null, '', newUrl);
           }
+        } else {
+          console.warn('[reset-password] Invalid recovery params:', { 
+            type, 
+            hasAccessToken: !!accessToken,
+            accessTokenLength: accessToken?.length || 0,
+            allParams: Array.from(hashParams.keys())
+          });
+          // Если нет access_token, показываем ошибку
+          if (!accessToken) {
+            setLocalError('Ссылка для сброса пароля недействительна. Отсутствует токен восстановления.');
+          } else {
+            setLocalError('Неверная ссылка для сброса пароля');
+          }
+        }
         } catch (err) {
           if (import.meta.env.DEV) {
             console.error('[reset-password] Exception handling callback:', err);
