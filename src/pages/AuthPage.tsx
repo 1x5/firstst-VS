@@ -72,7 +72,7 @@ export function AuthPage() {
               console.error('[reset-password] Error in URL:', error, errorDescription);
             }
             setLocalError(translateError(errorDescription || error) || 'Ошибка обработки ссылки');
-            window.history.replaceState(null, '', '/auth/reset-password');
+            navigate('/auth/reset-password', { replace: true });
             return;
           }
           
@@ -92,7 +92,7 @@ export function AuthPage() {
                 console.error('[reset-password] Session error:', sessionError);
               }
               setLocalError(translateError(sessionError.message) || 'Ссылка недействительна или истекла');
-              window.history.replaceState(null, '', '/auth/reset-password');
+              navigate('/auth/reset-password', { replace: true });
               return;
             }
 
@@ -113,7 +113,8 @@ export function AuthPage() {
                 console.log('[reset-password] Current user after setSession:', sessionData.session.user.id);
               }
               // Очищаем hash из URL ПОСЛЕ установки режима
-              window.history.replaceState(null, '', '/auth/reset-password');
+              // Используем navigate для правильной обработки роутинга
+              navigate('/auth/reset-password', { replace: true });
               
               if (import.meta.env.DEV) {
                 console.log('[reset-password] ===== CALLBACK HANDLING SUCCESS =====');
@@ -123,7 +124,7 @@ export function AuthPage() {
                 console.error('[reset-password] Session data is missing!');
               }
               setLocalError('Не удалось установить сессию');
-              window.history.replaceState(null, '', '/auth/reset-password');
+              navigate('/auth/reset-password', { replace: true });
             }
           } else {
             if (import.meta.env.DEV) {
@@ -139,7 +140,7 @@ export function AuthPage() {
             console.error('[reset-password] Exception handling callback:', err);
           }
           setLocalError('Ошибка обработки ссылки');
-          window.history.replaceState(null, '', '/auth/reset-password');
+          navigate('/auth/reset-password', { replace: true });
         }
       } else {
         if (import.meta.env.DEV) {
@@ -271,27 +272,33 @@ export function AuthPage() {
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="w-full max-w-sm space-y-6 text-center">
           <div className="flex flex-col items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-foreground/10">
-              <CheckCircle className="h-7 w-7 text-foreground" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10">
+              <CheckCircle className="h-7 w-7 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">Пароль изменён</h1>
+              <h1 className="text-xl font-bold">Пароль успешно изменён!</h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                Ваш пароль успешно обновлён. Теперь вы можете войти с новым паролем.
+                Ваш пароль был успешно изменён. Теперь вы можете войти в систему с новым паролем.
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              setMode('login');
-              setPasswordUpdated(false);
-              navigate('/');
-            }}
-          >
-            Войти
-          </Button>
+          <div className="space-y-2">
+            <Button
+              onClick={async () => {
+                // Выходим из recovery сессии и переходим на страницу входа
+                await useAuthStore.getState().signOut();
+                setMode('login');
+                setPasswordUpdated(false);
+                navigate('/');
+              }}
+              className="w-full"
+            >
+              Войти с новым паролем
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Вы будете перенаправлены на страницу входа
+            </p>
+          </div>
         </div>
       </div>
     );
