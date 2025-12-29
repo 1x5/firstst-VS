@@ -45,6 +45,8 @@ export function AuthPage() {
     }
 
     const handleResetPasswordCallback = async () => {
+      console.log('[reset-password] ===== CALLBACK HANDLING START =====');
+      
       // Получаем hash из разных источников (приоритет: window.location > location.hash > sessionStorage)
       const hashFromWindow = typeof window !== 'undefined' ? window.location.hash : null;
       const hashFromUrl = location.hash;
@@ -52,11 +54,20 @@ export function AuthPage() {
         ? sessionStorage.getItem('_reset_password_hash')
         : null;
       
+      console.log('[reset-password] Hash sources:', {
+        fromWindow: hashFromWindow ? 'yes' : 'no',
+        fromUrl: hashFromUrl ? 'yes' : 'no',
+        fromStorage: hashFromStorage ? 'yes (' + hashFromStorage.substring(0, 30) + '...)' : 'no'
+      });
+      
       const hashToProcess = hashFromWindow || hashFromUrl || (hashFromStorage ? `#${hashFromStorage}` : null);
       
       if (!hashToProcess) {
+        console.warn('[reset-password] No hash found in any source');
         return; // Нет hash - ничего не делаем
       }
+      
+      console.log('[reset-password] Processing hash...');
 
       try {
         // Парсим hash параметры
@@ -88,18 +99,23 @@ export function AuthPage() {
           }
 
           if (sessionData?.session) {
+            console.log('[reset-password] Session set successfully, setting mode to reset');
             setMode('reset');
             window.history.replaceState(null, '', window.location.pathname + window.location.search);
             if (typeof window !== 'undefined') {
               sessionStorage.removeItem('_reset_password_hash');
             }
+            console.log('[reset-password] ===== CALLBACK HANDLING SUCCESS =====');
           } else {
+            console.error('[reset-password] Session data is missing');
             setLocalError('Не удалось установить сессию');
           }
         } else {
+          console.warn('[reset-password] No access_token in hash');
           setLocalError('Ссылка для сброса пароля недействительна');
         }
       } catch (err) {
+        console.error('[reset-password] Error handling callback:', err);
         setLocalError('Ошибка обработки ссылки');
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
       }

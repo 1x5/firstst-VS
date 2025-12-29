@@ -170,14 +170,21 @@ function AuthenticatedApp() {
     const redirectPath = sessionStorage.getItem('_404_redirect');
     if (!redirectPath) return;
     
+    console.log('[App] Processing 404 redirect:', redirectPath.substring(0, 100));
+    
     sessionStorage.removeItem('_404_redirect');
     
     // Сохраняем hash отдельно, если есть
     const [path, hash] = redirectPath.split('#');
-    if (hash && !sessionStorage.getItem('_reset_password_hash')) {
-      sessionStorage.setItem('_reset_password_hash', hash);
+    if (hash) {
+      // Hash уже должен быть сохранен 404.html, но сохраняем на всякий случай
+      if (!sessionStorage.getItem('_reset_password_hash')) {
+        sessionStorage.setItem('_reset_password_hash', hash);
+        console.log('[App] Saved hash from redirect path');
+      }
     }
     
+    console.log('[App] Navigating to:', path);
     navigate(path, { replace: true });
   }, [navigate, location.pathname]);
 
