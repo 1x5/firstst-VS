@@ -41,12 +41,12 @@ export const translateError = (errorMessage: string): string => {
     return 'Пароль слишком короткий';
   }
   
-  if (lowerMessage.includes('token has expired') || lowerMessage.includes('expired') || lowerMessage.includes('otp_expired')) {
+  if (lowerMessage.includes('token has expired') || lowerMessage.includes('expired') || lowerMessage.includes('otp_expired') || lowerMessage.includes('email link is invalid or has expired')) {
     return 'Ссылка истекла. Запросите новую';
   }
   
-  if (lowerMessage.includes('invalid token') || lowerMessage.includes('token is invalid') || lowerMessage.includes('access_denied')) {
-    return 'Недействительная ссылка';
+  if (lowerMessage.includes('invalid token') || lowerMessage.includes('token is invalid') || lowerMessage.includes('access_denied') || lowerMessage.includes('email link is invalid')) {
+    return 'Ссылка недействительна или уже использована. Запросите новую';
   }
   
   if (lowerMessage.includes('network') || lowerMessage.includes('fetch')) {

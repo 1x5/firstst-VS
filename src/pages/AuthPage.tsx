@@ -89,7 +89,11 @@ export function AuthPage() {
         
         // Обработка ошибок в URL
         if (error) {
-          setLocalError(translateError(errorDescription || error) || 'Ошибка обработки ссылки');
+          const decodedDescription = errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : '';
+          const errorMessage = translateError(decodedDescription || error);
+          console.error('[reset-password] Error in URL:', { error, errorDescription: decodedDescription, errorMessage });
+          setLocalError(errorMessage || 'Ошибка обработки ссылки');
+          setMode('forgot'); // Переключаемся в режим "забыли пароль" для повторного запроса
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
           return;
         }
