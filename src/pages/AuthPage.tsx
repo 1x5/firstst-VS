@@ -70,38 +70,47 @@ export function AuthPage() {
         console.log('[reset-password] Location:', {
           pathname: location.pathname,
           hash: location.hash ? location.hash.substring(0, 50) + '...' : 'empty',
-          search: location.search
+          search: location.search,
+          fullUrl: window.location.href
         });
       }
       
-      // Проверяем, есть ли hash в URL (Supabase передает параметры через hash)
-      // Также проверяем sessionStorage для случая, если страница была загружена через 404.html
+      // ВАЖНО: Проверяем sessionStorage ПЕРВЫМ ДЕЛОМ (hash мог быть сохранен через 404.html)
       const hashFromStorage = typeof window !== 'undefined' 
         ? sessionStorage.getItem('_reset_password_hash')
         : null;
       
+      // Проверяем hash в URL
+      const hashFromUrl = location.hash;
+      
       if (import.meta.env.DEV) {
         console.log('[reset-password] Hash sources:', {
-          fromUrl: location.hash ? 'yes' : 'no',
-          fromStorage: hashFromStorage ? 'yes' : 'no',
-          storageValue: hashFromStorage ? hashFromStorage.substring(0, 50) + '...' : null
+          fromUrl: hashFromUrl ? 'yes (' + hashFromUrl.substring(0, 30) + '...)' : 'no',
+          fromStorage: hashFromStorage ? 'yes (' + hashFromStorage.substring(0, 30) + '...)' : 'no',
         });
       }
       
-      const hashToProcess = location.hash || (hashFromStorage ? `#${hashFromStorage}` : null);
+      // Приоритет: hash из URL, если нет - из sessionStorage
+      const hashToProcess = hashFromUrl || (hashFromStorage ? `#${hashFromStorage}` : null);
       
-      if (hashToProcess) {
-        // Сохраняем hash в sessionStorage на случай перезагрузки
-        if (typeof window !== 'undefined' && location.hash) {
-          sessionStorage.setItem('_reset_password_hash', location.hash.substring(1));
-          if (import.meta.env.DEV) {
-            console.log('[reset-password] Saved hash to sessionStorage');
-          }
-        }
-        
+      if (!hashToProcess) {
         if (import.meta.env.DEV) {
-          console.log('[reset-password] Processing hash:', hashToProcess.substring(0, 100) + '...');
+          console.warn('[reset-password] No hash found in URL or sessionStorage');
         }
+        return;
+      }
+      
+      // Сохраняем hash в sessionStorage на случай перезагрузки (если еще не сохранен)
+      if (typeof window !== 'undefined' && hashFromUrl && !hashFromStorage) {
+        sessionStorage.setItem('_reset_password_hash', hashFromUrl.substring(1));
+        if (import.meta.env.DEV) {
+          console.log('[reset-password] Saved hash to sessionStorage');
+        }
+      }
+      
+      if (import.meta.env.DEV) {
+        console.log('[reset-password] Processing hash:', hashToProcess.substring(0, 100) + '...');
+      }
         
         try {
           // Парсим hash параметры (убираем # в начале)

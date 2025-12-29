@@ -33,15 +33,19 @@ export function githubPages404(): Plugin {
         var hash = window.location.hash;
         var search = window.location.search;
         
+        // ВАЖНО: Сохраняем hash ПЕРВЫМ ДЕЛОМ, до любых других операций
+        if (hash && hash.length > 1) {
+          // Сохраняем hash без # в начале
+          var hashValue = hash.substring(1);
+          sessionStorage.setItem('_reset_password_hash', hashValue);
+          console.log('[404.html] Saved hash to sessionStorage:', hashValue.substring(0, 50) + '...');
+        }
+        
         // Сохраняем полный путь включая hash для обработки reset-password
         if (path !== '/' && !path.startsWith('/assets/') && !path.endsWith('.js') && !path.endsWith('.css') && !path.endsWith('.json') && !path.endsWith('.svg')) {
           var fullPath = path + search + hash;
           sessionStorage.setItem('_404_redirect', fullPath);
-          
-          // Если есть hash с токенами для reset-password, сохраняем его отдельно
-          if (hash && hash.includes('type=recovery')) {
-            sessionStorage.setItem('_reset_password_hash', hash.substring(1));
-          }
+          console.log('[404.html] Saved redirect path:', fullPath.substring(0, 100) + '...');
         }
       })();
     </script>`;

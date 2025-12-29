@@ -153,17 +153,40 @@ function AuthenticatedApp() {
   // Handle 404 redirect from GitHub Pages
   useEffect(() => {
     const redirectPath = sessionStorage.getItem('_404_redirect');
+    const savedHash = sessionStorage.getItem('_reset_password_hash');
+    
+    if (import.meta.env.DEV) {
+      console.log('[App] 404 redirect check:', {
+        hasRedirectPath: !!redirectPath,
+        hasSavedHash: !!savedHash,
+        redirectPath: redirectPath?.substring(0, 100),
+        savedHash: savedHash?.substring(0, 50)
+      });
+    }
+    
     if (redirectPath) {
       sessionStorage.removeItem('_404_redirect');
       
       // Если путь содержит hash (например, для reset-password), сохраняем его отдельно
       const [path, hash] = redirectPath.split('#');
-      if (hash) {
+      if (hash && !savedHash) {
+        // Сохраняем hash только если его еще нет в sessionStorage
         sessionStorage.setItem('_reset_password_hash', hash);
+        if (import.meta.env.DEV) {
+          console.log('[App] Saved hash from redirect path to sessionStorage');
+        }
       }
       
+      // Используем сохраненный hash, если он есть
+      const hashToUse = savedHash || hash;
+      
       // Use replace to avoid adding to history
-      navigate(path + (hash ? `#${hash}` : ''), { replace: true });
+      // НЕ добавляем hash в navigate, так как он будет обработан в AuthPage
+      navigate(path, { replace: true });
+      
+      if (import.meta.env.DEV) {
+        console.log('[App] Navigated to:', path, 'hash will be processed separately');
+      }
     }
   }, [navigate]);
 
