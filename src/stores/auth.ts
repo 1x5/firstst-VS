@@ -124,6 +124,16 @@ export const useAuthStore = create<AuthState>((set) => ({
           console.log('[onAuthStateChange] Event:', event, 'User:', session?.user?.id);
         }
         
+        // Обрабатываем событие SIGNED_OUT
+        if (event === 'SIGNED_OUT') {
+          clearUserData();
+          set({
+            session: null,
+            user: null,
+          });
+          return;
+        }
+        
         if (session?.user) {
           try {
             await loadUserData(session.user.id);
