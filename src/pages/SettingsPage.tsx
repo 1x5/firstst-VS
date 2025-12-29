@@ -858,7 +858,6 @@ export function SettingsPage() {
             {/* Поля для ввода OTP кода и нового пароля - показываем после нажатия "Сохранить" */}
             {otpSent && !otpVerified && (
               <div className="space-y-4 rounded-md border border-border bg-muted/50 p-4 mt-4">
-                {import.meta.env.DEV && console.log('[SettingsPage] Rendering OTP block, otpSent:', otpSent, 'otpVerified:', otpVerified)}
                 {/* Поле для ввода OTP кода */}
                 <div className="space-y-2">
                   <Label htmlFor="otp-code" className="text-sm font-medium">
