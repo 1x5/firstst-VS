@@ -66,15 +66,27 @@ export function AuthPage() {
   useEffect(() => {
     const handleResetPasswordCallback = async () => {
       // Проверяем, есть ли hash в URL (Supabase передает параметры через hash)
-      if (location.hash) {
+      // Также проверяем sessionStorage для случая, если страница была загружена через 404.html
+      const hashFromStorage = typeof window !== 'undefined' 
+        ? sessionStorage.getItem('_reset_password_hash')
+        : null;
+      
+      const hashToProcess = location.hash || (hashFromStorage ? `#${hashFromStorage}` : null);
+      
+      if (hashToProcess) {
+        // Сохраняем hash в sessionStorage на случай перезагрузки
+        if (typeof window !== 'undefined' && location.hash) {
+          sessionStorage.setItem('_reset_password_hash', location.hash.substring(1));
+        }
         if (import.meta.env.DEV) {
           console.log('[reset-password] ===== CALLBACK HANDLING START =====');
           console.log('[reset-password] Full hash:', location.hash.substring(0, 100) + '...');
         }
         
         try {
-          // Парсим hash параметры
-          const hashParams = new URLSearchParams(location.hash.substring(1));
+          // Парсим hash параметры (убираем # в начале)
+          const hashString = hashToProcess.startsWith('#') ? hashToProcess.substring(1) : hashToProcess;
+          const hashParams = new URLSearchParams(hashString);
           const type = hashParams.get('type');
           const accessToken = hashParams.get('access_token');
           const refreshToken = hashParams.get('refresh_token');
@@ -144,6 +156,11 @@ export function AuthPage() {
               // Используем replaceState вместо navigate, чтобы избежать 404
               const newUrl = window.location.pathname + window.location.search;
               window.history.replaceState(null, '', newUrl);
+              
+              // Очищаем сохраненный hash из sessionStorage
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('_reset_password_hash');
+              }
               
               if (import.meta.env.DEV) {
                 console.log('[reset-password] ===== CALLBACK HANDLING SUCCESS =====');

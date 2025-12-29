@@ -30,8 +30,18 @@ export function githubPages404(): Plugin {
       // Store current path for React Router to handle after load
       (function() {
         var path = window.location.pathname;
+        var hash = window.location.hash;
+        var search = window.location.search;
+        
+        // Сохраняем полный путь включая hash для обработки reset-password
         if (path !== '/' && !path.startsWith('/assets/') && !path.endsWith('.js') && !path.endsWith('.css') && !path.endsWith('.json') && !path.endsWith('.svg')) {
-          sessionStorage.setItem('_404_redirect', path + window.location.search + window.location.hash);
+          var fullPath = path + search + hash;
+          sessionStorage.setItem('_404_redirect', fullPath);
+          
+          // Если есть hash с токенами для reset-password, сохраняем его отдельно
+          if (hash && hash.includes('type=recovery')) {
+            sessionStorage.setItem('_reset_password_hash', hash.substring(1));
+          }
         }
       })();
     </script>`;

@@ -155,8 +155,15 @@ function AuthenticatedApp() {
     const redirectPath = sessionStorage.getItem('_404_redirect');
     if (redirectPath) {
       sessionStorage.removeItem('_404_redirect');
+      
+      // Если путь содержит hash (например, для reset-password), сохраняем его отдельно
+      const [path, hash] = redirectPath.split('#');
+      if (hash) {
+        sessionStorage.setItem('_reset_password_hash', hash);
+      }
+      
       // Use replace to avoid adding to history
-      navigate(redirectPath, { replace: true });
+      navigate(path + (hash ? `#${hash}` : ''), { replace: true });
     }
   }, [navigate]);
 
