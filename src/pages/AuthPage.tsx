@@ -44,30 +44,39 @@ export function AuthPage() {
       return;
     }
 
-    const handleResetPasswordCallback = async () => {
-      console.log('[reset-password] ===== CALLBACK HANDLING START =====');
-      
-      // Получаем hash из разных источников (приоритет: window.location > location.hash > sessionStorage)
-      const hashFromWindow = typeof window !== 'undefined' ? window.location.hash : null;
-      const hashFromUrl = location.hash;
-      const hashFromStorage = typeof window !== 'undefined' 
-        ? sessionStorage.getItem('_reset_password_hash')
-        : null;
-      
-      console.log('[reset-password] Hash sources:', {
-        fromWindow: hashFromWindow ? 'yes' : 'no',
-        fromUrl: hashFromUrl ? 'yes' : 'no',
-        fromStorage: hashFromStorage ? 'yes (' + hashFromStorage.substring(0, 30) + '...)' : 'no'
-      });
-      
-      const hashToProcess = hashFromWindow || hashFromUrl || (hashFromStorage ? `#${hashFromStorage}` : null);
-      
-      if (!hashToProcess) {
-        console.warn('[reset-password] No hash found in any source');
-        return; // Нет hash - ничего не делаем
-      }
-      
-      console.log('[reset-password] Processing hash...');
+    // Добавляем небольшую задержку, чтобы убедиться, что sessionStorage уже заполнен
+    const timeoutId = setTimeout(() => {
+      handleResetPasswordCallback();
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [location.pathname, location.hash]);
+
+  const handleResetPasswordCallback = async () => {
+    console.log('[reset-password] ===== CALLBACK HANDLING START =====');
+    console.log('[reset-password] Current pathname:', location.pathname);
+    
+    // Получаем hash из разных источников (приоритет: window.location > location.hash > sessionStorage)
+    const hashFromWindow = typeof window !== 'undefined' ? window.location.hash : null;
+    const hashFromUrl = location.hash;
+    const hashFromStorage = typeof window !== 'undefined' 
+      ? sessionStorage.getItem('_reset_password_hash')
+      : null;
+    
+    console.log('[reset-password] Hash sources:', {
+      fromWindow: hashFromWindow ? 'yes (' + hashFromWindow.substring(0, 30) + '...)' : 'no',
+      fromUrl: hashFromUrl ? 'yes (' + hashFromUrl.substring(0, 30) + '...)' : 'no',
+      fromStorage: hashFromStorage ? 'yes (' + hashFromStorage.substring(0, 30) + '...)' : 'no'
+    });
+    
+    const hashToProcess = hashFromWindow || hashFromUrl || (hashFromStorage ? `#${hashFromStorage}` : null);
+    
+    if (!hashToProcess) {
+      console.warn('[reset-password] No hash found in any source');
+      return; // Нет hash - ничего не делаем
+    }
+    
+    console.log('[reset-password] Processing hash...');
 
       try {
         // Парсим hash параметры

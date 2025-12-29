@@ -207,11 +207,25 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
         
         if (session?.user) {
-          try {
-            await loadUserData(session.user.id);
-          } catch (error) {
+          // Проверяем, является ли это recovery сессией (для сброса пароля)
+          // Recovery сессии имеют тип 'recovery' в app_metadata или мы на странице reset-password
+          const isRecoverySession = session.user.app_metadata?.provider === 'email' && 
+            (typeof window !== 'undefined' && window.location.pathname.includes('/auth/reset-password'));
+          
+          // Для recovery сессий НЕ загружаем данные пользователя
+          // Это позволяет избежать ошибок RLS и проблем с сетью
+          if (!isRecoverySession) {
+            try {
+              await loadUserData(session.user.id);
+            } catch (error) {
+              if (import.meta.env.DEV) {
+                console.error('[onAuthStateChange] Error loading user data:', error);
+              }
+              // Не блокируем установку сессии при ошибках загрузки данных
+            }
+          } else {
             if (import.meta.env.DEV) {
-              console.error('[onAuthStateChange] Error loading user data:', error);
+              console.log('[onAuthStateChange] Recovery session detected, skipping user data load');
             }
           }
         } else {
