@@ -76,43 +76,52 @@ export function AuthPage() {
       }
       
       // ВАЖНО: Проверяем sessionStorage ПЕРВЫМ ДЕЛОМ (hash мог быть сохранен через 404.html)
+      // Это критично, так как GitHub Pages может очистить hash из URL
       const hashFromStorage = typeof window !== 'undefined' 
         ? sessionStorage.getItem('_reset_password_hash')
         : null;
       
-      // Проверяем hash в URL
+      // Проверяем hash в URL (может быть пустым из-за 404)
       const hashFromUrl = location.hash;
+      
+      // Также проверяем window.location.hash напрямую (может быть еще не обработан React Router)
+      const hashFromWindow = typeof window !== 'undefined' ? window.location.hash : null;
       
       if (import.meta.env.DEV) {
         console.log('[reset-password] Hash sources:', {
           fromUrl: hashFromUrl ? 'yes (' + hashFromUrl.substring(0, 30) + '...)' : 'no',
+          fromWindow: hashFromWindow ? 'yes (' + hashFromWindow.substring(0, 30) + '...)' : 'no',
           fromStorage: hashFromStorage ? 'yes (' + hashFromStorage.substring(0, 30) + '...)' : 'no',
         });
       }
       
-      // Приоритет: hash из URL, если нет - из sessionStorage
-      const hashToProcess = hashFromUrl || (hashFromStorage ? `#${hashFromStorage}` : null);
+      // Приоритет: hash из window.location (самый надежный), затем из location.hash, затем из sessionStorage
+      const hashToProcess = hashFromWindow || hashFromUrl || (hashFromStorage ? `#${hashFromStorage}` : null);
       
       if (!hashToProcess) {
         if (import.meta.env.DEV) {
-          console.warn('[reset-password] No hash found in URL or sessionStorage');
+          console.warn('[reset-password] ⚠️ No hash found in URL, window.location, or sessionStorage');
+          console.warn('[reset-password] This means the recovery link was not processed correctly');
         }
         return;
       }
       
       // Сохраняем hash в sessionStorage на случай перезагрузки (если еще не сохранен)
-      if (typeof window !== 'undefined' && hashFromUrl && !hashFromStorage) {
-        sessionStorage.setItem('_reset_password_hash', hashFromUrl.substring(1));
-        if (import.meta.env.DEV) {
-          console.log('[reset-password] Saved hash to sessionStorage');
+      if (typeof window !== 'undefined') {
+        const hashValue = hashToProcess.startsWith('#') ? hashToProcess.substring(1) : hashToProcess;
+        if (!hashFromStorage || hashFromStorage !== hashValue) {
+          sessionStorage.setItem('_reset_password_hash', hashValue);
+          if (import.meta.env.DEV) {
+            console.log('[reset-password] Saved hash to sessionStorage');
+          }
         }
       }
       
       if (import.meta.env.DEV) {
         console.log('[reset-password] Processing hash:', hashToProcess.substring(0, 100) + '...');
       }
-        
-        try {
+      
+      try {
           // Парсим hash параметры (убираем # в начале)
           const hashString = hashToProcess.startsWith('#') ? hashToProcess.substring(1) : hashToProcess;
           const hashParams = new URLSearchParams(hashString);
@@ -220,10 +229,13 @@ export function AuthPage() {
           const newUrl = window.location.pathname + window.location.search;
           window.history.replaceState(null, '', newUrl);
         }
-      } else {
+      } catch (err) {
         if (import.meta.env.DEV) {
-          console.log('[reset-password] No hash in URL, pathname:', location.pathname, 'mode:', mode);
+          console.error('[reset-password] Exception handling callback:', err);
         }
+        setLocalError('Ошибка обработки ссылки');
+        const newUrl = window.location.pathname + window.location.search;
+        window.history.replaceState(null, '', newUrl);
       }
     };
 
