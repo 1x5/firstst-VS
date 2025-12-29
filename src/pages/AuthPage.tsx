@@ -229,14 +229,6 @@ export function AuthPage() {
           const newUrl = window.location.pathname + window.location.search;
           window.history.replaceState(null, '', newUrl);
         }
-      } catch (err) {
-        if (import.meta.env.DEV) {
-          console.error('[reset-password] Exception handling callback:', err);
-        }
-        setLocalError('Ошибка обработки ссылки');
-        const newUrl = window.location.pathname + window.location.search;
-        window.history.replaceState(null, '', newUrl);
-      }
     };
 
     // Проверяем, если мы на странице reset-password
