@@ -684,8 +684,51 @@ export function SettingsPage() {
               />
             </div>
 
-            <div className="text-xs text-muted-foreground">
-              Для смены пароля используйте функцию "Забыли пароль?" на странице входа
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 p-3">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Сменить пароль</p>
+                <p className="text-xs text-muted-foreground">
+                  Для смены пароля перейдите на страницу входа
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!user?.email) {
+                    setAccountError('Email пользователя не найден');
+                    return;
+                  }
+                  
+                  setSavingAccount(true);
+                  setAccountError('');
+                  setAccountMessage('');
+                  
+                  try {
+                    const { resetPassword } = useAuthStore.getState();
+                    const success = await resetPassword(user.email);
+                    
+                    if (success) {
+                      setAccountMessage('Письмо для сброса пароля отправлено на вашу почту');
+                      setShowSuccess(true);
+                      setTimeout(() => {
+                        setShowSuccess(false);
+                        setAccountMessage('');
+                      }, 5000);
+                    } else {
+                      setAccountError('Ошибка отправки письма');
+                    }
+                  } catch (err) {
+                    setAccountError('Ошибка отправки письма');
+                  } finally {
+                    setSavingAccount(false);
+                  }
+                }}
+                disabled={savingAccount}
+                className="ml-2"
+              >
+                {savingAccount ? 'Отправка...' : 'Сбросить пароль'}
+              </Button>
             </div>
 
             <Button 
