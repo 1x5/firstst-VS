@@ -13,7 +13,6 @@ import { IncomePage } from '@/pages/IncomePage';
 import { ExpensePage } from '@/pages/ExpensePage';
 import { AuthPage } from '@/pages/AuthPage';
 import { SettingsPage } from '@/pages/SettingsPage';
-import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 
 function AppLayout() {
   const navigate = useNavigate();
@@ -194,10 +193,10 @@ function AuthenticatedApp() {
     return <LoadingScreen />;
   }
 
-  // Если на странице reset-password, показываем ResetPasswordPage
-  // (даже если пользователь авторизован, так как это recovery сессия)
-  if (location.pathname === '/auth/reset-password') {
-    return <ResetPasswordPage />;
+  // Если на странице reset-password, показываем AuthPage
+  // (для обработки recovery сессии из email ссылки)
+  if (location.pathname.includes('/auth/reset-password')) {
+    return <AuthPage />;
   }
 
   // Показываем AuthPage для неавторизованных пользователей
