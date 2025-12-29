@@ -609,43 +609,17 @@ export function SettingsPage() {
           throw new Error(passwordError);
         }
         
-        if (import.meta.env.DEV) {
-          console.log('[PASSWORD] Starting password reset email...');
-        }
-        
-        // Для смены пароля используем resetPasswordForEmail
-        // Это отправляет письмо с ссылкой для смены пароля
         if (!user?.email) {
           throw new Error('Email пользователя не найден');
         }
         
-        // Всегда используем production URL для redirect
         const redirectUrl = 'https://uchet1.ru/auth/reset-password';
-        
-        if (import.meta.env.DEV) {
-          console.log('[SettingsPage] ===== STARTING PASSWORD RESET FROM SETTINGS =====');
-          console.log('[SettingsPage] User email:', user.email);
-          console.log('[SettingsPage] Redirect URL:', redirectUrl);
-        }
-        
         const passwordReset = supabase.auth.resetPasswordForEmail(user.email, {
           redirectTo: redirectUrl,
         });
         
-        // Показываем успех сразу, но проверяем ошибки в фоне
         passwordReset.then((result) => {
           if (result.error) {
-            if (import.meta.env.DEV) {
-              console.error('[SettingsPage] ===== PASSWORD RESET ERROR =====');
-              console.error('[SettingsPage] Error code:', result.error.status || result.error.code);
-              console.error('[SettingsPage] Error message:', result.error.message);
-              console.error('[SettingsPage] Full error:', result.error);
-              
-              if (result.error.message.includes('redirect_to')) {
-                console.error('[SettingsPage] ⚠️ ПРОБЛЕМА: URL не добавлен в Supabase Dashboard!');
-                console.error('[SettingsPage] Решение: Добавьте https://uchet1.ru/auth/reset-password в Redirect URLs');
-              }
-            }
             setAccountError(translateError(result.error.message) || 'Ошибка отправки письма');
           } else {
             if (import.meta.env.DEV) {

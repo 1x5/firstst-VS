@@ -432,66 +432,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     
     try {
-      // Всегда используем production URL для redirect
       const redirectUrl = 'https://uchet1.ru/auth/reset-password';
-      
-      if (import.meta.env.DEV) {
-        console.log('[resetPassword] ===== STARTING PASSWORD RESET =====');
-        console.log('[resetPassword] Email:', email);
-        console.log('[resetPassword] Redirect URL:', redirectUrl);
-        console.log('[resetPassword] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
-      }
-      
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });
 
-      if (error) {
-        if (import.meta.env.DEV) {
-          console.error('[resetPassword] ===== SUPABASE ERROR =====');
-          console.error('[resetPassword] Error code:', error.status || error.code);
-          console.error('[resetPassword] Error message:', error.message);
-          console.error('[resetPassword] Full error:', error);
-        }
-        throw error;
-      }
-
-      if (import.meta.env.DEV) {
-        console.log('[resetPassword] ===== SUCCESS =====');
-        console.log('[resetPassword] Response data:', data);
-        console.log('[resetPassword] Email should be sent to:', email);
-        console.log('[resetPassword] ⚠️ ВАЖНО: Проверьте папку СПАМ!');
-        console.log('[resetPassword] ⚠️ ВАЖНО: Если письмо не пришло, проверьте настройки Supabase Dashboard');
-        console.log('[resetPassword] ⚠️ ВАЖНО: URL должен быть добавлен в Redirect URLs: https://uchet1.ru/auth/reset-password');
-      }
+      if (error) throw error;
 
       set({ isLoading: false });
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? translateError(error.message) : 'Ошибка отправки письма';
-      
-      if (import.meta.env.DEV) {
-        console.error('[resetPassword] ===== FINAL ERROR =====');
-        console.error('[resetPassword] Error object:', error);
-        console.error('[resetPassword] Error message:', errorMessage);
-        
-        // Дополнительная диагностика
-        if (error instanceof Error) {
-          if (error.message.includes('redirect_to')) {
-            console.error('[resetPassword] ⚠️ ПРОБЛЕМА: URL не добавлен в Supabase Dashboard!');
-            console.error('[resetPassword] Решение: Добавьте https://uchet1.ru/auth/reset-password в Redirect URLs');
-          }
-          if (error.message.includes('rate limit') || error.message.includes('too many')) {
-            console.error('[resetPassword] ⚠️ ПРОБЛЕМА: Превышен лимит отправки писем!');
-            console.error('[resetPassword] Решение: Подождите некоторое время');
-          }
-        }
-      }
-      
-      set({
-        isLoading: false,
-        error: errorMessage,
-      });
+      set({ isLoading: false, error: errorMessage });
       return false;
     }
   },
@@ -499,85 +451,25 @@ export const useAuthStore = create<AuthState>((set) => ({
   updatePassword: async (newPassword: string) => {
     set({ isLoading: true, error: null });
     
-    if (import.meta.env.DEV) {
-      console.log('[updatePassword] ===== STARTING PASSWORD UPDATE =====');
-    }
-    
-    // Проверяем текущую сессию
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    
-    if (import.meta.env.DEV) {
-      console.log('[updatePassword] Current session check:', {
-        hasSession: !!sessionData.session,
-        userId: sessionData.session?.user?.id,
-        email: sessionData.session?.user?.email,
-        sessionError: sessionError?.message
-      });
-    }
-    
-    if (!sessionData.session) {
-      const errorMsg = 'Сессия не найдена. Перейдите по ссылке из письма заново.';
-      if (import.meta.env.DEV) {
-        console.error('[updatePassword] ⚠️ ПРОБЛЕМА: Нет активной сессии!');
-        console.error('[updatePassword] Это означает, что recovery токен не был установлен или истек');
-        console.error('[updatePassword] Решение: Перейдите по ссылке из письма еще раз');
-      }
-      set({
-        isLoading: false,
-        error: errorMsg,
-      });
-      return false;
-    }
-    
     try {
-      if (import.meta.env.DEV) {
-        console.log('[updatePassword] Calling supabase.auth.updateUser...');
-        console.log('[updatePassword] Session type check:', {
-          isRecovery: sessionData.session?.user?.app_metadata?.provider === 'email',
-          hasRecoveryToken: !!sessionData.session?.access_token
-        });
+      // Проверяем текущую сессию
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (!sessionData.session) {
+        set({ isLoading: false, error: 'Сессия не найдена. Перейдите по ссылке из письма заново.' });
+        return false;
       }
       
-      // Для recovery сессии используем updateUser напрямую
-      // НЕ используем signIn с grant_type=password
-      const { data, error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
+      // Обновляем пароль
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
 
-      if (error) {
-        if (import.meta.env.DEV) {
-          console.error('[updatePassword] ===== SUPABASE ERROR =====');
-          console.error('[updatePassword] Error code:', error.status || error.code);
-          console.error('[updatePassword] Error message:', error.message);
-          console.error('[updatePassword] Full error:', error);
-        }
-        throw error;
-      }
-
-      if (import.meta.env.DEV) {
-        console.log('[updatePassword] ===== SUCCESS =====');
-        console.log('[updatePassword] Password updated successfully:', {
-          userId: data.user?.id,
-          email: data.user?.email
-        });
-        console.log('[updatePassword] User can now login with new password');
-      }
+      if (error) throw error;
 
       set({ isLoading: false });
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? translateError(error.message) : 'Ошибка обновления пароля';
-      
-      if (import.meta.env.DEV) {
-        console.error('[updatePassword] ===== FINAL ERROR =====');
-        console.error('[updatePassword] Error object:', error);
-        console.error('[updatePassword] Error message:', errorMessage);
-      }
-      
-      set({
-        isLoading: false,
-        error: errorMessage,
-      });
+      set({ isLoading: false, error: errorMessage });
       return false;
     }
   },

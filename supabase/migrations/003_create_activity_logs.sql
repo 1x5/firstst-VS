@@ -41,3 +41,4 @@ CREATE POLICY "Users can delete own activity logs"
 COMMENT ON TABLE public.activity_logs IS 'Таблица для хранения логов действий пользователей с транзакциями';
 COMMENT ON COLUMN public.activity_logs.action IS 'Действие: added (добавлено), updated (обновлено), deleted (удалено)';
 
+

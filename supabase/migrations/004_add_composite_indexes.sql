@@ -14,3 +14,4 @@ ON public.transactions(user_id, created_at DESC);
 COMMENT ON INDEX idx_transactions_user_date_type IS 'Оптимизация запросов с фильтрацией по пользователю, дате и типу транзакции';
 COMMENT ON INDEX idx_transactions_user_created IS 'Оптимизация загрузки последних транзакций пользователя';
 
+

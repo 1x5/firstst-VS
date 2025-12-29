@@ -13,6 +13,7 @@ import { IncomePage } from '@/pages/IncomePage';
 import { ExpensePage } from '@/pages/ExpensePage';
 import { AuthPage } from '@/pages/AuthPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 
 function AppLayout() {
   const navigate = useNavigate();
@@ -168,41 +169,17 @@ function AuthenticatedApp() {
   // Handle 404 redirect from GitHub Pages
   useEffect(() => {
     const redirectPath = sessionStorage.getItem('_404_redirect');
-    const savedHash = sessionStorage.getItem('_reset_password_hash');
+    if (!redirectPath) return;
     
-    // Логируем всегда (не только в dev), чтобы видеть в production
-    console.log('[App] 404 redirect check:', {
-      hasRedirectPath: !!redirectPath,
-      hasSavedHash: !!savedHash,
-      redirectPath: redirectPath?.substring(0, 100),
-      savedHash: savedHash?.substring(0, 50),
-      currentPath: location.pathname
-    });
+    sessionStorage.removeItem('_404_redirect');
     
-    if (redirectPath) {
-      sessionStorage.removeItem('_404_redirect');
-      
-      // Если путь содержит hash (например, для reset-password), сохраняем его отдельно
-      const [path, hash] = redirectPath.split('#');
-      if (hash && !savedHash) {
-        // Сохраняем hash только если его еще нет в sessionStorage
-        sessionStorage.setItem('_reset_password_hash', hash);
-        console.log('[App] Saved hash from redirect path to sessionStorage');
-      }
-      
-      // Используем сохраненный hash, если он есть
-      const hashToUse = savedHash || hash;
-      
-      // Use replace to avoid adding to history
-      // НЕ добавляем hash в navigate, так как он будет обработан в AuthPage
-      console.log('[App] Navigating to:', path);
-      navigate(path, { replace: true });
-      
-      console.log('[App] Navigated to:', path);
-      console.log('[App] Hash will be processed in AuthPage from sessionStorage');
-      const finalHash = typeof window !== 'undefined' ? sessionStorage.getItem('_reset_password_hash') : null;
-      console.log('[App] Current hash in sessionStorage:', finalHash ? 'exists (' + finalHash.substring(0, 30) + '...)' : 'missing');
+    // Сохраняем hash отдельно, если есть
+    const [path, hash] = redirectPath.split('#');
+    if (hash && !sessionStorage.getItem('_reset_password_hash')) {
+      sessionStorage.setItem('_reset_password_hash', hash);
     }
+    
+    navigate(path, { replace: true });
   }, [navigate, location.pathname]);
 
   useEffect(() => {
@@ -217,19 +194,14 @@ function AuthenticatedApp() {
     return <LoadingScreen />;
   }
 
-  // Показываем AuthPage для неавторизованных пользователей и для страницы сброса пароля
-  // Это нужно для обработки recovery сессии из email ссылки
-  if (!user) {
-    return <AuthPage />;
+  // Если на странице reset-password, показываем ResetPasswordPage
+  // (даже если пользователь авторизован, так как это recovery сессия)
+  if (location.pathname === '/auth/reset-password') {
+    return <ResetPasswordPage />;
   }
 
-  // Если на странице reset-password, ВСЕГДА показываем AuthPage
-  // (для обработки recovery сессии из email ссылки)
-  // Это нужно, потому что recovery сессия может быть установлена, но user еще не загружен
-  if (location.pathname.includes('/auth/reset-password')) {
-    if (import.meta.env.DEV) {
-      console.log('[App] On reset-password page, showing AuthPage (user:', !!user, ')');
-    }
+  // Показываем AuthPage для неавторизованных пользователей
+  if (!user) {
     return <AuthPage />;
   }
 
