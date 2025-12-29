@@ -128,10 +128,7 @@ export function AuthPage() {
         setLocalError('Ошибка обработки ссылки');
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
       }
-    };
-
-    handleResetPasswordCallback();
-  }, [location.pathname, location.hash]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
