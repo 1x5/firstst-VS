@@ -102,7 +102,11 @@ function AppLayout() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={signOut}
+                onClick={async () => {
+                  await signOut();
+                  // После выхода перенаправляем на страницу входа
+                  navigate('/');
+                }}
                 className="h-7 w-7"
                 title="Выйти"
               >

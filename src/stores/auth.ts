@@ -305,19 +305,62 @@ export const useAuthStore = create<AuthState>((set) => ({
   signOut: async () => {
     set({ isLoading: true, error: null });
     
+    if (import.meta.env.DEV) {
+      console.log('[signOut] ===== STARTING SIGN OUT =====');
+    }
+    
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
+      // Сначала очищаем локальные данные
       clearUserData();
+      
+      // Пытаемся выйти из Supabase
+      // Используем scope: 'local' чтобы избежать 403 ошибки
+      // Это выйдет только из текущей сессии, не из всех устройств
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.error('[signOut] Supabase signOut error:', error);
+          console.error('[signOut] Error details:', {
+            message: error.message,
+            status: error.status,
+            code: error.code
+          });
+        }
+        
+        // Если ошибка 403, просто очищаем локальное состояние
+        // Это может произойти если сессия уже истекла или недействительна
+        if (error.status === 403 || error.message.includes('403')) {
+          if (import.meta.env.DEV) {
+            console.warn('[signOut] Got 403 error, clearing local state anyway');
+          }
+        } else {
+          // Для других ошибок пробрасываем исключение
+          throw error;
+        }
+      }
 
+      // Очищаем состояние независимо от результата Supabase
       set({
         user: null,
         session: null,
         isLoading: false,
       });
+      
+      if (import.meta.env.DEV) {
+        console.log('[signOut] ===== SIGN OUT SUCCESS =====');
+      }
     } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[signOut] ===== SIGN OUT ERROR =====');
+        console.error('[signOut] Error:', error);
+      }
+      
+      // Даже при ошибке очищаем локальное состояние
+      clearUserData();
       set({
+        user: null,
+        session: null,
         isLoading: false,
         error: error instanceof Error ? translateError(error.message) : 'Ошибка выхода',
       });
