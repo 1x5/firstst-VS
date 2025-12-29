@@ -8,6 +8,7 @@ import { useActivityLogStore } from './activityLog';
 import { transactionsService } from '@/services/transactions';
 import { categoriesService } from '@/services/categories';
 import { activityLogsService } from '@/services/activityLogs';
+import { translateError } from '@/lib/translate-error';
 
 interface AuthState {
   user: User | null;
@@ -108,7 +109,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Ошибка инициализации',
+        error: error instanceof Error ? translateError(error.message) : 'Ошибка инициализации',
       });
     }
   },
@@ -138,7 +139,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Ошибка регистрации',
+        error: error instanceof Error ? translateError(error.message) : 'Ошибка регистрации',
       });
       return false;
     }
@@ -206,16 +207,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       return true;
     } catch (error) {
-      let message = 'Ошибка входа';
-      if (error instanceof Error) {
-        if (error.message.includes('Invalid login credentials')) {
-          message = 'Неверный email или пароль';
-        } else if (error.message.includes('Email not confirmed')) {
-          message = 'Подтвердите email';
-        } else {
-          message = error.message;
-        }
-      }
+      const message = error instanceof Error 
+        ? translateError(error.message)
+        : 'Ошибка входа';
       set({
         isLoading: false,
         error: message,
@@ -241,7 +235,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Ошибка выхода',
+        error: error instanceof Error ? translateError(error.message) : 'Ошибка выхода',
       });
     }
   },
@@ -265,7 +259,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Ошибка отправки письма',
+        error: error instanceof Error ? translateError(error.message) : 'Ошибка отправки письма',
       });
       return false;
     }
@@ -286,7 +280,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Ошибка обновления пароля',
+        error: error instanceof Error ? translateError(error.message) : 'Ошибка обновления пароля',
       });
       return false;
     }

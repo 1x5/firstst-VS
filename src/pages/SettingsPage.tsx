@@ -12,6 +12,7 @@ import { useAppearanceStore } from '@/stores/appearance';
 import { useActivityLogStore } from '@/stores/activityLog';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { translateError } from '@/lib/translate-error';
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user);
@@ -251,7 +252,7 @@ export function SettingsPage() {
       setDataSuccess('БД очищена. Созданы стандартные категории и тестовая транзакция');
       setShowDeleteConfirm(false);
     } catch (err) {
-      setDataError(err instanceof Error ? err.message : 'Ошибка удаления');
+      setDataError(err instanceof Error ? translateError(err.message) : 'Ошибка удаления');
     } finally {
       setDeleting(false);
     }
@@ -462,7 +463,7 @@ export function SettingsPage() {
       if (import.meta.env.DEV) {
         console.error('Save error:', err);
       }
-      setDataError(err instanceof Error ? err.message : 'Ошибка сохранения');
+      setDataError(err instanceof Error ? translateError(err.message) : 'Ошибка сохранения');
     } finally {
       setSavingData(false);
     }
@@ -579,7 +580,7 @@ export function SettingsPage() {
             if (import.meta.env.DEV) {
               console.error('Email update error:', result.error);
             }
-            setAccountError(result.error.message || 'Ошибка обновления email');
+            setAccountError(translateError(result.error.message) || 'Ошибка обновления email');
           } else {
             if (import.meta.env.DEV) {
               console.log('Email update successful');
@@ -634,7 +635,7 @@ export function SettingsPage() {
                      if (import.meta.env.DEV) {
                        console.error('Password reset error:', result.error);
                      }
-                     setAccountError(result.error.message || 'Ошибка отправки письма');
+                     setAccountError(translateError(result.error.message) || 'Ошибка отправки письма');
                    } else {
                      if (import.meta.env.DEV) {
                        console.log('Password reset email sent successfully');
@@ -677,7 +678,7 @@ export function SettingsPage() {
                  console.error('[FINAL ERROR] Account update error:', err);
                  console.error('[FINAL ERROR] Error details:', err);
                }
-               const errorMessage = err instanceof Error ? err.message : 'Ошибка обновления данных';
+               const errorMessage = err instanceof Error ? translateError(err.message) : 'Ошибка обновления данных';
                setAccountError(errorMessage);
              } finally {
                if (import.meta.env.DEV) {

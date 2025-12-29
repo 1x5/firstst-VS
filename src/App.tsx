@@ -141,6 +141,7 @@ function AuthenticatedApp() {
   const { user, isLoading, initialize } = useAuthStore();
   const { isDark } = useThemeStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     initialize();
@@ -168,7 +169,9 @@ function AuthenticatedApp() {
     return <LoadingScreen />;
   }
 
-  if (!user) {
+  // Показываем AuthPage для страницы сброса пароля, даже если пользователь авторизован
+  // Это нужно для обработки recovery сессии из email ссылки
+  if (!user || location.pathname.includes('/auth/reset-password')) {
     return <AuthPage />;
   }
 

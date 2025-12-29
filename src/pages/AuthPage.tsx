@@ -33,32 +33,34 @@ export function AuthPage() {
           const hashParams = new URLSearchParams(location.hash.substring(1));
           const type = hashParams.get('type');
           const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
           
           if (type === 'recovery' && accessToken) {
             // Устанавливаем сессию из токена
-            const { error: sessionError } = await supabase.auth.setSession({
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
-              refresh_token: hashParams.get('refresh_token') || '',
+              refresh_token: refreshToken || '',
             });
 
             if (sessionError) {
-              setLocalError('Ссылка недействительна или истекла');
+              setLocalError(translateError(sessionError.message) || 'Ссылка недействительна или истекла');
               // Очищаем hash из URL
-              navigate('/auth/reset-password', { replace: true });
+              window.history.replaceState(null, '', '/auth/reset-password');
               return;
             }
 
-            // Переключаемся в режим сброса пароля
+            // После установки сессии ждем немного для обновления состояния
+            // и переключаемся в режим сброса пароля
             setMode('reset');
             // Очищаем hash из URL
-            navigate('/auth/reset-password', { replace: true });
+            window.history.replaceState(null, '', '/auth/reset-password');
           }
         } catch (err) {
           if (import.meta.env.DEV) {
             console.error('Error handling reset password callback:', err);
           }
           setLocalError('Ошибка обработки ссылки');
-          navigate('/auth/reset-password', { replace: true });
+          window.history.replaceState(null, '', '/auth/reset-password');
         }
       }
     };
@@ -67,7 +69,7 @@ export function AuthPage() {
     if (location.pathname.includes('/auth/reset-password')) {
       handleResetPasswordCallback();
     }
-  }, [location, navigate]);
+  }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
