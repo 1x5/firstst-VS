@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,10 +17,61 @@ export function AuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
   const [localError, setLocalError] = useState('');
-  const [resetSent, setResetSent] = useState(false);
   const [passwordUpdated, setPasswordUpdated] = useState(false);
-  const { signIn, signUp, resetPassword, updatePassword, isLoading, error, clearError, user } = useAuthStore();
+  const { updatePassword, sendOTP, verifyOTP, isLoading, error, clearError, user } = useAuthStore();
+  
+  // Refs для автофокуса
+  const otpInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  
+  // Вспомогательная функция для избежания проблем с сужением типов TypeScript
+  const getMode = (): AuthMode => mode;
+  
+  // Автофокус на поле OTP когда оно появляется
+  useEffect(() => {
+    if (otpSent && !otpVerified && otpInputRef.current) {
+      setTimeout(() => {
+        otpInputRef.current?.focus();
+      }, 100);
+    }
+  }, [otpSent, otpVerified]);
+  
+  // Автофокус на поле пароля после проверки OTP
+  useEffect(() => {
+    if (otpVerified && passwordInputRef.current) {
+      setTimeout(() => {
+        passwordInputRef.current?.focus();
+      }, 100);
+    }
+  }, [otpVerified]);
+  
+  // Подписка на обновления сессии для обработки обновления пароля
+  useEffect(() => {
+    if ((mode !== 'reset' && mode !== 'register') || !user) return;
+    
+    // Если пользователь авторизован после обновления пароля, перенаправляем в настройки
+    const checkPasswordUpdate = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && user.id === session.user.id) {
+        // Проверяем, что это не recovery сессия
+        const isRecoverySession = session.user.app_metadata?.provider === 'email' && 
+          window.location.pathname.includes('/auth/reset-password');
+        
+        if (!isRecoverySession) {
+          // Сессия обновлена, перенаправляем в настройки
+          navigate('/settings?passwordChanged=true&section=account', { replace: true });
+        }
+      }
+    };
+    
+    // Проверяем через небольшую задержку
+    const timeoutId = setTimeout(checkPasswordUpdate, 500);
+    return () => clearTimeout(timeoutId);
+  }, [user, mode, navigate]);
   
   // Восстанавливаем состояние passwordUpdated из sessionStorage только если пользователь НЕ авторизован
   // Это нужно, чтобы показывать экран успеха только сразу после обновления пароля, а не после авторизации
@@ -50,9 +101,30 @@ export function AuthPage() {
   
 
   // Упрощенная обработка callback от Supabase для reset password
+  const callbackProcessedRef = useRef<string | null>(null);
+  
   useEffect(() => {
     // Обрабатываем только на странице reset-password
     if (!location.pathname.includes('/auth/reset-password')) {
+      callbackProcessedRef.current = null;
+      return;
+    }
+
+    // Получаем hash для проверки
+    const hashFromWindow = typeof window !== 'undefined' ? window.location.hash : null;
+    const hashFromUrl = location.hash;
+    const hashFromStorage = typeof window !== 'undefined' 
+      ? sessionStorage.getItem('_reset_password_hash')
+      : null;
+    const hashToCheck = hashFromWindow || hashFromUrl || (hashFromStorage ? `#${hashFromStorage}` : null);
+
+    // Если hash нет, не обрабатываем
+    if (!hashToCheck) {
+      return;
+    }
+
+    // Если уже обработали этот hash, не обрабатываем снова
+    if (callbackProcessedRef.current === hashToCheck) {
       return;
     }
 
@@ -126,6 +198,10 @@ export function AuthPage() {
           if (sessionData?.session) {
             console.log('[reset-password] Session set successfully, setting mode to reset');
             setMode('reset');
+            // Помечаем hash как обработанный (используем hashToProcess, который уже определен выше)
+            if (hashToProcess) {
+              callbackProcessedRef.current = hashToProcess;
+            }
             window.history.replaceState(null, '', window.location.pathname + window.location.search);
             if (typeof window !== 'undefined') {
               sessionStorage.removeItem('_reset_password_hash');
@@ -151,49 +227,72 @@ export function AuthPage() {
     setLocalError('');
     clearError();
 
+    // Забыли пароль - отправка OTP кода
     if (mode === 'forgot') {
-      if (!email) {
-        setLocalError('Введите email');
+      if (!otpSent) {
+        // Шаг 1: Отправка OTP кода
+        if (!email) {
+          setLocalError('Введите email');
+          return;
+        }
+        const success = await sendOTP(email, 'recovery');
+        if (success) {
+          setOtpSent(true);
+        }
         return;
       }
-      const success = await resetPassword(email);
-      if (success) {
-        setResetSent(true);
+      
+      if (!otpVerified) {
+        // Шаг 2: Проверка OTP кода
+        if (!otpCode) {
+          setLocalError('Введите код из письма');
+          return;
+        }
+        const success = await verifyOTP(email, otpCode, 'recovery');
+        if (success) {
+          setOtpVerified(true);
+          // После проверки OTP переключаемся в режим reset для установки нового пароля
+          // Сохраняем состояние otpSent и otpVerified, чтобы пользователь мог сразу ввести пароль
+          setMode('reset');
+        }
+        return;
       }
-      return;
     }
 
-    if (mode !== 'reset' && !email) {
-      setLocalError('Введите email');
-      return;
-    }
-
-    // Для входа не нужна валидация пароля - Supabase сам проверит
-    if (mode === 'login') {
+    // Регистрация через OTP
+    if (mode === 'register') {
+      if (!otpSent) {
+        // Шаг 1: Отправка OTP кода
+        if (!email) {
+          setLocalError('Введите email');
+          return;
+        }
+        const success = await sendOTP(email, 'signup');
+        if (success) {
+          setOtpSent(true);
+        }
+        return;
+      }
+      
+      if (!otpVerified) {
+        // Шаг 2: Проверка OTP кода
+        if (!otpCode) {
+          setLocalError('Введите код из письма');
+          return;
+        }
+        const success = await verifyOTP(email, otpCode, 'signup');
+        if (success) {
+          setOtpVerified(true);
+        }
+        return;
+      }
+      
+      // Шаг 3: Создание пароля после проверки OTP
       if (!password) {
         setLocalError('Введите пароль');
         return;
       }
-      // Прямой вызов signIn без дополнительной валидации
-      const success = await signIn(email, password);
-      if (success) {
-        console.log('[AuthPage] Login successful, waiting for user state update...');
-        // Ждем обновления состояния пользователя перед редиректом
-        // onAuthStateChange обновит user, и App.tsx автоматически покажет AppLayout
-        // Не делаем navigate сразу, чтобы дать время обновиться состоянию
-      } else {
-        console.log('[AuthPage] Login failed');
-      }
-      return;
-    }
-
-    if (!password) {
-      setLocalError('Введите пароль');
-      return;
-    }
-
-    // Улучшенная валидация пароля (только для register и reset)
-    if (mode === 'register' || mode === 'reset') {
+      
       if (password !== confirmPassword) {
         setLocalError('Пароли не совпадают');
         return;
@@ -204,7 +303,6 @@ export function AuthPage() {
         return;
       }
       
-      // Проверка сложности пароля
       if (!/[a-zA-Zа-яА-Я]/.test(password)) {
         setLocalError('Пароль должен содержать буквы');
         return;
@@ -214,18 +312,177 @@ export function AuthPage() {
         setLocalError('Пароль должен содержать цифры');
         return;
       }
-    }
-
-    if (mode === 'register') {
-      await signUp(email, password);
-    } else if (mode === 'reset') {
+      
+      // Устанавливаем пароль после успешной проверки OTP
       const success = await updatePassword(password);
       if (success) {
-        setPasswordUpdated(true);
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('passwordUpdated', 'true');
+        // Пароль установлен, пользователь авторизован
+        navigate('/');
+      }
+      return;
+    }
+
+    // Смена пароля через OTP
+    if (mode === 'reset') {
+      if (!otpSent) {
+        // Шаг 1: Отправка OTP кода
+        if (!email) {
+          setLocalError('Введите email');
+          return;
+        }
+        const success = await sendOTP(email, 'recovery');
+        if (success) {
+          setOtpSent(true);
+        }
+        return;
+      }
+      
+      if (!otpVerified) {
+        // Шаг 2: Проверка OTP кода
+        if (!otpCode) {
+          setLocalError('Введите код из письма');
+          return;
+        }
+        const success = await verifyOTP(email, otpCode, 'recovery');
+        if (success) {
+          setOtpVerified(true);
+        }
+        return;
+      }
+      
+      // Шаг 3: Установка нового пароля после проверки OTP
+      if (!password) {
+        setLocalError('Введите новый пароль');
+        return;
+      }
+      
+      if (password !== confirmPassword) {
+        setLocalError('Пароли не совпадают');
+        return;
+      }
+
+      if (password.length < 8) {
+        setLocalError('Пароль должен быть не менее 8 символов');
+        return;
+      }
+      
+      if (!/[a-zA-Zа-яА-Я]/.test(password)) {
+        setLocalError('Пароль должен содержать буквы');
+        return;
+      }
+      
+      if (!/\d/.test(password)) {
+        setLocalError('Пароль должен содержать цифры');
+        return;
+      }
+      
+      const success = await updatePassword(password);
+      if (success) {
+        // После успешного обновления пароля ждем обновления сессии
+        // updateUser должен обновить сессию автоматически через onAuthStateChange
+        // Даем время для обновления (максимум 2 секунды)
+        let attempts = 0;
+        const maxAttempts = 20;
+        
+        while (attempts < maxAttempts) {
+          // Проверяем сессию напрямую из Supabase
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          const { user: storeUser } = useAuthStore.getState();
+          
+          // Если сессия есть и пользователь обновился в store
+          if (currentSession?.user && storeUser && currentSession.user.id === storeUser.id) {
+            // Проверяем, что это не recovery сессия (после updateUser она должна стать обычной)
+            // Recovery сессии обычно имеют type=recovery в токене, но после updateUser это должно измениться
+            
+            // Обновляем пользователя в store на всякий случай
+            useAuthStore.setState({
+              session: currentSession,
+              user: currentSession.user,
+              isLoading: false,
+            });
+            
+            // Загружаем данные пользователя в фоне
+            useAuthStore.getState().initialize().catch(() => {
+              // Игнорируем ошибки загрузки данных
+            });
+            
+            // Перенаправляем в настройки
+            navigate('/settings?passwordChanged=true&section=account', { replace: true });
+            return;
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
+        }
+        
+        // Если не удалось дождаться обновления, проверяем сессию вручную
+        const { data: { session: finalSession }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          if (import.meta.env.DEV) {
+            console.error('[reset] Error getting session:', sessionError);
+          }
+          setLocalError('Ошибка получения сессии');
+          return;
+        }
+        
+        if (finalSession?.user) {
+          // Обновляем пользователя в store вручную
+          useAuthStore.setState({
+            session: finalSession,
+            user: finalSession.user,
+            isLoading: false,
+          });
+          
+          // Загружаем данные пользователя в фоне
+          useAuthStore.getState().initialize().catch(() => {
+            // Игнорируем ошибки загрузки данных
+          });
+          
+          // Перенаправляем в настройки
+          navigate('/settings?passwordChanged=true&section=account', { replace: true });
+        } else {
+          // Если сессия не найдена, показываем экран успеха (fallback)
+          setPasswordUpdated(true);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('passwordUpdated', 'true');
+          }
         }
       }
+      return;
+    }
+
+    // Вход через пароль
+    if (mode === 'login') {
+      if (!email) {
+        setLocalError('Введите email');
+        return;
+      }
+      
+      if (!password) {
+        setLocalError('Введите пароль');
+        return;
+      }
+      
+      // Используем signIn из store
+      try {
+        const { signIn } = useAuthStore.getState();
+        const success = await signIn(email, password);
+        if (!success) {
+          // Если signIn вернул false, ошибка уже установлена в store
+          const errorMessage = useAuthStore.getState().error;
+          if (errorMessage) {
+            setLocalError(translateError(errorMessage));
+          } else {
+            setLocalError('Неверный email или пароль');
+          }
+        }
+        // Если успешно, пользователь обновится через onAuthStateChange и произойдет редирект
+      } catch (err: any) {
+        const errorMessage = err?.message || 'Ошибка входа';
+        setLocalError(translateError(errorMessage));
+      }
+      return;
     }
   };
 
@@ -233,7 +490,11 @@ export function AuthPage() {
     setMode(newMode);
     clearError();
     setLocalError('');
-    setResetSent(false);
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpCode('');
+    setPassword('');
+    setConfirmPassword('');
   };
 
   const displayError = localError || error;
@@ -282,33 +543,7 @@ export function AuthPage() {
     );
   }
 
-  // Экран успешной отправки письма
-  if (mode === 'forgot' && resetSent) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <div className="w-full max-w-sm space-y-6 text-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-foreground/10">
-              <CheckCircle className="h-7 w-7 text-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Письмо отправлено</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Мы отправили ссылку для сброса пароля на {email}
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => switchMode('login')}
-          >
-            Вернуться ко входу
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Экран успешной отправки письма больше не нужен - теперь используется OTP flow
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -328,6 +563,12 @@ export function AuthPage() {
           )}
         </div>
 
+        {/* Error message - показываем перед полями ввода, чтобы не мешал */}
+        {displayError && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-2.5 text-sm text-destructive">
+            {displayError}
+          </div>
+        )}
 
         {/* Back button for forgot and reset modes */}
         {(mode === 'forgot' || mode === 'reset') && (
@@ -348,7 +589,15 @@ export function AuthPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {(mode !== 'reset') && (
+          {/* Email поле - показываем для login, forgot (когда OTP не отправлен), и для register/reset когда OTP еще не отправлен */}
+          {(() => {
+            const currentMode = getMode();
+            if (currentMode === 'login') return true;
+            if (currentMode === 'forgot' && !otpSent) return true;
+            if (currentMode === 'register' && !otpSent) return true;
+            if (currentMode === 'reset' && !otpSent) return true;
+            return false;
+          })() && (
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-sm">
                 Email
@@ -362,13 +611,50 @@ export function AuthPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-11 pl-10"
-                  disabled={isLoading}
+                  disabled={(() => {
+                    const currentMode = getMode();
+                    return isLoading || (otpSent && (currentMode === 'register' || currentMode === 'reset'));
+                  })()}
                 />
               </div>
             </div>
           )}
 
-          {(mode !== 'forgot' && mode !== 'reset') && (
+          {/* OTP код - показываем после отправки OTP и до проверки */}
+          {(() => {
+            const currentMode = getMode();
+            if (currentMode === 'register' && otpSent && !otpVerified) return true;
+            if (currentMode === 'reset' && otpSent && !otpVerified) return true;
+            if (currentMode === 'forgot' && otpSent && !otpVerified) return true;
+            return false;
+          })() && (
+            <div className="space-y-1.5">
+              <Label htmlFor="otpCode" className="text-sm">
+                Код из письма
+              </Label>
+              <div className="relative">
+                <Input
+                  ref={otpInputRef}
+                  id="otpCode"
+                  type="text"
+                  placeholder="Введите 6-значный код"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="h-11 text-center text-lg tracking-widest"
+                  disabled={isLoading}
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Код отправлен на {email}
+              </p>
+            </div>
+          )}
+
+          {/* Поле пароля для входа - показываем только для login */}
+          {mode === 'login' && (
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-sm">
                 Пароль
@@ -388,7 +674,13 @@ export function AuthPage() {
             </div>
           )}
 
-          {(mode === 'register' || mode === 'reset') && (
+          {/* Поля пароля - показываем только после проверки OTP для регистрации и смены пароля */}
+          {(() => {
+            const currentMode = getMode();
+            if (currentMode === 'register' && otpVerified) return true;
+            if (currentMode === 'reset' && otpVerified) return true;
+            return false;
+          })() && (
             <>
               <div className="space-y-1.5">
                 <Label htmlFor="password" className="text-sm">
@@ -397,6 +689,7 @@ export function AuthPage() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    ref={passwordInputRef}
                     id="password"
                     type="password"
                     placeholder="••••••••"
@@ -407,30 +700,24 @@ export function AuthPage() {
                   />
                 </div>
               </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword" className="text-sm">
-                Подтвердите пароль
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="h-11 pl-10"
-                  disabled={isLoading}
-                />
+              <div className="space-y-1.5">
+                <Label htmlFor="confirmPassword" className="text-sm">
+                  Подтвердите пароль
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="h-11 pl-10"
+                    disabled={isLoading}
+                  />
+                </div>
               </div>
-            </div>
             </>
-          )}
-
-          {displayError && (
-            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-              {displayError}
-            </div>
           )}
 
           <Button
@@ -441,17 +728,29 @@ export function AuthPage() {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {mode === 'login' ? 'Вход...' : mode === 'register' ? 'Регистрация...' : 'Отправка...'}
+                {(() => {
+                  const currentMode = getMode();
+                  if (currentMode === 'login') return 'Вход...';
+                  if (currentMode === 'register') {
+                    return otpSent ? (otpVerified ? 'Регистрация...' : 'Проверка...') : 'Отправка...';
+                  }
+                  if (currentMode === 'reset') {
+                    return otpSent ? (otpVerified ? 'Обновление...' : 'Проверка...') : 'Отправка...';
+                  }
+                  return 'Отправка...';
+                })()}
               </>
-            ) : mode === 'login' ? (
-              'Войти'
-            ) : mode === 'register' ? (
-              'Зарегистрироваться'
-            ) : mode === 'reset' ? (
-              'Обновить пароль'
-            ) : (
-              'Отправить ссылку'
-            )}
+            ) : (() => {
+              const currentMode = getMode();
+              if (currentMode === 'login') return 'Войти';
+              if (currentMode === 'register') {
+                return otpSent ? (otpVerified ? 'Завершить регистрацию' : 'Проверить код') : 'Отправить код';
+              }
+              if (currentMode === 'reset') {
+                return otpSent ? (otpVerified ? 'Установить пароль' : 'Проверить код') : 'Отправить код';
+              }
+              return 'Отправить код';
+            })()}
           </Button>
         </form>
 
@@ -476,7 +775,7 @@ export function AuthPage() {
           </div>
         )}
 
-        {mode === 'register' && (
+        {getMode() === 'register' && (
           <p className="text-center text-xs text-muted-foreground">
             Уже есть аккаунт?{' '}
             <button

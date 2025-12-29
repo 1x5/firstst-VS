@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { sanitizeCategoryName, sanitizeDescription } from '@/lib/sanitize';
-import { User, FileText, Download, Upload, Save, RefreshCw, Palette, Trash2 } from 'lucide-react';
+import { User, FileText, Download, Upload, Save, RefreshCw, Palette, Trash2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,19 +21,134 @@ export function SettingsPage() {
   const clearFinance = useFinanceStore((state) => state.clearAll);
   const categories = useCategoriesStore((state) => state.categories) || [];
   const clearCategories = useCategoriesStore((state) => state.clearAll);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   
   // Appearance
   const { appName, showLogoIcon, setAppName, setShowLogoIcon } = useAppearanceStore();
 
-  // Active section
-  const [activeSection, setActiveSection] = useState<'account' | 'data' | 'appearance'>('account');
+  // Active section - проверяем параметр section из URL
+  const sectionParam = searchParams.get('section') as 'account' | 'data' | 'appearance' | null;
+  const [activeSection, setActiveSection] = useState<'account' | 'data' | 'appearance'>(
+    sectionParam || 'account'
+  );
 
   // Account state
-  const [newEmail, setNewEmail] = useState('');
+  const [accountEmail, setAccountEmail] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
   const [accountMessage, setAccountMessage] = useState('');
   const [accountError, setAccountError] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  
+  // OTP state для подтверждения изменений
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [newPasswordAfterOTP, setNewPasswordAfterOTP] = useState('');
+  const [confirmPasswordAfterOTP, setConfirmPasswordAfterOTP] = useState('');
+  const otpInputRef = useRef<HTMLInputElement>(null);
+  const newPasswordAfterOTPInputRef = useRef<HTMLInputElement>(null);
+  
+  // Инициализация полей при загрузке пользователя
+  useEffect(() => {
+    if (user?.email) {
+      setAccountEmail(user.email);
+      setAccountPassword(''); // Пароль всегда пустой при загрузке
+    }
+  }, [user?.email]);
+  
+  // Проверка, изменились ли данные
+  const hasChanges = useMemo(() => {
+    const emailChanged = accountEmail.trim() !== (user?.email || '');
+    const passwordChanged = accountPassword.trim() !== '';
+    return emailChanged || passwordChanged;
+  }, [accountEmail, accountPassword, user?.email]);
+  
+  // Автофокус на поле OTP когда оно появляется
+  useEffect(() => {
+    if (otpSent && !otpVerified && otpInputRef.current) {
+      // Небольшая задержка для плавного появления
+      setTimeout(() => {
+        otpInputRef.current?.focus();
+      }, 100);
+    }
+  }, [otpSent, otpVerified]);
+  
+  // Автофокус на поле нового пароля после отправки OTP
+  useEffect(() => {
+    if (otpSent && newPasswordAfterOTPInputRef.current) {
+      setTimeout(() => {
+        newPasswordAfterOTPInputRef.current?.focus();
+      }, 150);
+    }
+  }, [otpSent]);
+  
+  // Функция для применения изменений после проверки OTP
+  const applyAccountChanges = async () => {
+    setSavingAccount(true);
+    setAccountError('');
+    
+    try {
+      const successMessages: string[] = [];
+      
+      // Обновление email
+      if (accountEmail.trim() !== (user?.email || '')) {
+        const redirectUrl = 'https://uchet1.ru/auth/callback';
+        const { error } = await supabase.auth.updateUser({
+          email: accountEmail.trim(),
+          options: {
+            emailRedirectTo: redirectUrl,
+          },
+        });
+        
+        if (error) {
+          throw new Error(translateError(error.message) || 'Ошибка обновления email');
+        }
+        
+        successMessages.push('Письмо подтверждения отправлено на новый email');
+      }
+      
+      // Обновление пароля
+      if (accountPassword.trim()) {
+        const { updatePassword } = useAuthStore.getState();
+        const success = await updatePassword(accountPassword);
+        
+        if (!success) {
+          throw new Error('Ошибка обновления пароля');
+        }
+        
+        successMessages.push('Пароль успешно изменен');
+        setAccountPassword(''); // Очищаем пароль после успешного обновления
+      }
+      
+      // Показываем сообщения об успехе
+      if (successMessages.length > 0) {
+        setAccountMessage(successMessages.join('. '));
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+          setAccountMessage('');
+        }, 5000);
+      }
+      
+      // Сбрасываем состояние OTP
+      setOtpSent(false);
+      setOtpVerified(false);
+      setOtpCode('');
+      setNewPasswordAfterOTP('');
+      setConfirmPasswordAfterOTP('');
+      
+      // Обновляем email в состоянии, если он изменился
+      if (accountEmail.trim() !== (user?.email || '')) {
+        // Email будет обновлен после подтверждения через письмо
+      }
+    } catch (err: any) {
+      setAccountError(translateError(err?.message || 'Ошибка сохранения изменений'));
+    } finally {
+      setSavingAccount(false);
+    }
+  };
 
   // Data editor state
   const [dataText, setDataText] = useState('');
@@ -92,6 +208,39 @@ export function SettingsPage() {
       setDataText(generateText());
     }
   }, [activeSection, generateText]);
+
+  // Обработка параметра passwordChanged из URL
+  useEffect(() => {
+    const passwordChanged = searchParams.get('passwordChanged');
+    const section = searchParams.get('section');
+    
+    // Если есть параметр section, устанавливаем активную секцию
+    if (section && (section === 'account' || section === 'data' || section === 'appearance')) {
+      setActiveSection(section);
+    }
+    
+    // Если пароль был изменен, показываем уведомление
+    if (passwordChanged === 'true') {
+      setAccountMessage('Пароль успешно изменён!');
+      setShowSuccess(true);
+      setActiveSection('account');
+      
+      // Убираем зеленый цвет через 3 секунды
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 3000);
+      
+      // Очищаем сообщение через 5 секунд
+      setTimeout(() => {
+        setAccountMessage('');
+      }, 5000);
+      
+      // Удаляем параметр из URL
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('passwordChanged');
+      setSearchParams(newSearchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Format amount with spaces
   const formatAmount = (amount: number) => {
@@ -515,99 +664,6 @@ export function SettingsPage() {
   };
 
 
-  // Update account
-  const handleUpdateAccount = async () => {
-    // Проверяем, что email заполнен
-    if (!newEmail.trim()) {
-      setAccountError('Введите новый email');
-      return;
-    }
-
-    setSavingAccount(true);
-    setAccountError('');
-    setAccountMessage('');
-
-    try {
-      let successMessages: string[] = [];
-
-      // Обновление email - проверяем, что email действительно новый и отличается от текущего
-      const trimmedEmail = newEmail.trim();
-      if (trimmedEmail && trimmedEmail !== user?.email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(trimmedEmail)) {
-          throw new Error('Некорректный формат email');
-        }
-        
-        // Отправляем запрос и ждем ответ (но не блокируем UI)
-        // Всегда используем production URL для redirect
-        const redirectUrl = 'https://uchet1.ru/auth/callback';
-        const emailUpdate = supabase.auth.updateUser({ 
-          email: trimmedEmail,
-          options: {
-            emailRedirectTo: redirectUrl,
-          },
-        });
-        
-        // Показываем успех сразу, но проверяем ошибки в фоне
-        emailUpdate.then((result) => {
-          if (result.error) {
-            if (import.meta.env.DEV) {
-              console.error('Email update error:', result.error);
-            }
-            setAccountError(translateError(result.error.message) || 'Ошибка обновления email');
-          } else {
-            if (import.meta.env.DEV) {
-              console.log('Email update successful');
-            }
-          }
-        }).catch((err) => {
-          if (import.meta.env.DEV) {
-            console.error('Email update error:', err);
-          }
-          setAccountError('Ошибка обновления email');
-        });
-        
-        successMessages.push('Письмо подтверждения отправлено на новый email');
-        setNewEmail('');
-      } else if (trimmedEmail && trimmedEmail === user?.email) {
-        // Если введен текущий email, просто очищаем поле без отправки
-        setNewEmail('');
-      }
-
-      if (successMessages.length > 0) {
-        // Объединяем сообщения, убирая дубликаты
-        const uniqueMessages = Array.from(new Set(successMessages));
-        setAccountMessage(uniqueMessages.join('. '));
-        setShowSuccess(true);
-        
-        // Убираем зеленый цвет через 2 секунды
-        setTimeout(() => {
-          setShowSuccess(false);
-        }, 2000);
-        
-        // Очищаем сообщение через 5 секунд
-        setTimeout(() => {
-          setAccountMessage('');
-        }, 5000);
-      }
-      
-               if (import.meta.env.DEV) {
-                 console.log('[FINAL] Function completed successfully');
-               }
-             } catch (err) {
-               if (import.meta.env.DEV) {
-                 console.error('[FINAL ERROR] Account update error:', err);
-                 console.error('[FINAL ERROR] Error details:', err);
-               }
-               const errorMessage = err instanceof Error ? translateError(err.message) : 'Ошибка обновления данных';
-               setAccountError(errorMessage);
-             } finally {
-               if (import.meta.env.DEV) {
-                 console.log('[FINALLY] Setting savingAccount to false');
-               }
-               setSavingAccount(false);
-             }
-  };
 
   return (
     <div className="space-y-4">
@@ -672,75 +728,248 @@ export function SettingsPage() {
       {activeSection === 'account' && (
         <div className="space-y-4">
           <h2 className="text-sm font-semibold">Аккаунт</h2>
-          <div className="space-y-3">
+          <div className="space-y-4">
+            {/* Поле Email */}
             <div className="space-y-2">
-              <Label htmlFor="new-email">Новый email</Label>
+              <Label htmlFor="account-email">Email</Label>
               <Input
-                id="new-email"
+                id="account-email"
                 type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder={user?.email || 'email@example.com'}
+                value={accountEmail}
+                onChange={(e) => setAccountEmail(e.target.value)}
+                placeholder="email@example.com"
+                disabled={savingAccount || otpSent}
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 p-3">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Сменить пароль</p>
+            {/* Поле Пароль - скрываем после отправки OTP */}
+            {!otpSent && (
+              <div className="space-y-2">
+                <Label htmlFor="account-password">Пароль</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="account-password"
+                    type="password"
+                    value={accountPassword}
+                    onChange={(e) => setAccountPassword(e.target.value)}
+                    placeholder="••••••••"
+                    disabled={savingAccount}
+                    className="pl-10"
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Письмо для сброса пароля будет отправлено на {user?.email}
+                  Оставьте пустым, если не хотите менять пароль
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  if (!user?.email) {
-                    setAccountError('Email пользователя не найден');
+            )}
+
+            {/* Кнопка Сохранить */}
+            <Button
+              type="button"
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (!hasChanges) {
+                  return;
+                }
+
+                setAccountError('');
+                setAccountMessage('');
+                setSavingAccount(true);
+
+                try {
+                  // Валидация email
+                  if (accountEmail.trim() !== (user?.email || '')) {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailRegex.test(accountEmail.trim())) {
+                      setAccountError('Некорректный формат email');
+                      setSavingAccount(false);
+                      return;
+                    }
+                  }
+
+                  // Валидация пароля
+                  if (accountPassword.trim()) {
+                    if (accountPassword.length < 8) {
+                      setAccountError('Пароль должен быть не менее 8 символов');
+                      setSavingAccount(false);
+                      return;
+                    }
+                    if (!/[a-zA-Zа-яА-Я]/.test(accountPassword)) {
+                      setAccountError('Пароль должен содержать буквы');
+                      setSavingAccount(false);
+                      return;
+                    }
+                    if (!/\d/.test(accountPassword)) {
+                      setAccountError('Пароль должен содержать цифры');
+                      setSavingAccount(false);
+                      return;
+                    }
+                  }
+
+                  // Отправляем OTP код
+                  const emailToUse = accountEmail.trim() || user?.email || '';
+                  if (!emailToUse) {
+                    setAccountError('Email не указан');
+                    setSavingAccount(false);
                     return;
                   }
-                  
-                  setSavingAccount(true);
-                  setAccountError('');
-                  setAccountMessage('');
-                  
-                  try {
-                    const { resetPassword } = useAuthStore.getState();
-                    const success = await resetPassword(user.email);
-                    
-                    if (success) {
-                      setAccountMessage('Письмо для сброса пароля отправлено на вашу почту');
-                      setShowSuccess(true);
-                      setTimeout(() => {
-                        setShowSuccess(false);
-                        setAccountMessage('');
-                      }, 5000);
-                    } else {
-                      setAccountError('Ошибка отправки письма');
-                    }
-                  } catch (err) {
-                    setAccountError('Ошибка отправки письма');
-                  } finally {
-                    setSavingAccount(false);
-                  }
-                }}
-                disabled={savingAccount}
-                className="ml-2"
-              >
-                {savingAccount ? 'Отправка...' : 'Сбросить пароль'}
-              </Button>
-            </div>
 
-            <Button 
-              onClick={handleUpdateAccount} 
-              disabled={savingAccount} 
-              className={cn(
-                "w-full transition-colors duration-300",
-                showSuccess && "bg-green-600 hover:bg-green-700 text-white"
-              )}
+                  const { sendOTP } = useAuthStore.getState();
+                  const success = await sendOTP(emailToUse, 'recovery');
+
+                  if (success) {
+                    if (import.meta.env.DEV) {
+                      console.log('[SettingsPage] OTP sent successfully, setting otpSent to true');
+                    }
+                    setOtpCode('');
+                    setOtpVerified(false);
+                    setOtpSent(true);
+                    setAccountMessage('Код отправлен на вашу почту');
+                    setShowSuccess(true);
+                    setTimeout(() => {
+                      setShowSuccess(false);
+                      setAccountMessage('');
+                    }, 3000);
+                    
+                    // Проверяем состояние после обновления
+                    setTimeout(() => {
+                      if (import.meta.env.DEV) {
+                        console.log('[SettingsPage] otpSent state after update:', true);
+                      }
+                    }, 100);
+                  } else {
+                    setAccountError('Ошибка отправки кода');
+                  }
+                } catch (err: any) {
+                  setAccountError(translateError(err?.message || 'Ошибка отправки кода'));
+                } finally {
+                  setSavingAccount(false);
+                }
+              }}
+              disabled={!hasChanges || savingAccount || otpSent}
+              className="w-full"
             >
-              {savingAccount ? 'Сохранение...' : showSuccess ? '✓ Сохранено' : 'Сохранить'}
+              {savingAccount ? 'Отправка кода...' : 'Сохранить'}
             </Button>
+
+            {/* Поля для ввода OTP кода и нового пароля - показываем после нажатия "Сохранить" */}
+            {otpSent && !otpVerified && (
+              <div className="space-y-4 rounded-md border border-border bg-muted/50 p-4 mt-4">
+                {import.meta.env.DEV && console.log('[SettingsPage] Rendering OTP block, otpSent:', otpSent, 'otpVerified:', otpVerified)}
+                {/* Поле для ввода OTP кода */}
+                <div className="space-y-2">
+                  <Label htmlFor="otp-code" className="text-sm font-medium">
+                    Код из письма
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      ref={otpInputRef}
+                      id="otp-code"
+                      type="text"
+                      placeholder="Введите 6-значный код"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="h-11 text-center text-lg tracking-widest"
+                      maxLength={6}
+                      disabled={savingAccount}
+                      autoComplete="one-time-code"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Код отправлен на {accountEmail.trim() || user?.email}
+                  </p>
+                </div>
+
+                {/* Поле для ввода нового пароля */}
+                <div className="space-y-2 border-t border-border pt-3">
+                  <Label htmlFor="new-password-after-otp" className="text-sm font-medium">
+                    Новый пароль
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      ref={newPasswordAfterOTPInputRef}
+                      id="new-password-after-otp"
+                      type="password"
+                      placeholder="Введите новый пароль"
+                      value={newPasswordAfterOTP}
+                      onChange={(e) => setNewPasswordAfterOTP(e.target.value)}
+                      className="h-11 pl-10"
+                      disabled={savingAccount}
+                    />
+                  </div>
+                </div>
+
+                {/* Кнопка для проверки кода и сохранения */}
+                <Button
+                  type="button"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    if (!otpCode || otpCode.length !== 6) {
+                      setAccountError('Введите 6-значный код');
+                      return;
+                    }
+                    
+                    const emailToUse = accountEmail.trim() || user?.email || '';
+                    if (!emailToUse) {
+                      setAccountError('Email не указан');
+                      return;
+                    }
+                    
+                    // Валидация пароля, если он введен
+                    if (newPasswordAfterOTP.trim()) {
+                      if (newPasswordAfterOTP.length < 8) {
+                        setAccountError('Пароль должен быть не менее 8 символов');
+                        return;
+                      }
+                      if (!/[a-zA-Zа-яА-Я]/.test(newPasswordAfterOTP)) {
+                        setAccountError('Пароль должен содержать буквы');
+                        return;
+                      }
+                      if (!/\d/.test(newPasswordAfterOTP)) {
+                        setAccountError('Пароль должен содержать цифры');
+                        return;
+                      }
+                    }
+                    
+                    setSavingAccount(true);
+                    setAccountError('');
+                    
+                    try {
+                      const { verifyOTP } = useAuthStore.getState();
+                      const success = await verifyOTP(emailToUse, otpCode, 'recovery');
+                      
+                      if (success) {
+                        setOtpVerified(true);
+                        // Обновляем accountPassword из нового поля, если пароль введен
+                        if (newPasswordAfterOTP.trim()) {
+                          setAccountPassword(newPasswordAfterOTP);
+                        }
+                        // После проверки OTP применяем изменения
+                        await applyAccountChanges();
+                      } else {
+                        setAccountError('Неверный код');
+                      }
+                    } catch (err: any) {
+                      setAccountError(translateError(err?.message || 'Ошибка проверки кода'));
+                    } finally {
+                      setSavingAccount(false);
+                    }
+                  }}
+                  disabled={savingAccount || !otpCode || otpCode.length !== 6}
+                  className="w-full"
+                >
+                  {savingAccount ? 'Проверка и сохранение...' : 'Проверить код и сохранить'}
+                </Button>
+              </div>
+            )}
+
           </div>
 
           {accountMessage && (

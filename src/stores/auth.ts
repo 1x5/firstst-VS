@@ -23,6 +23,9 @@ interface AuthState {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
   updatePassword: (newPassword: string) => Promise<boolean>;
+  // OTP methods
+  sendOTP: (email: string, type: 'signup' | 'recovery') => Promise<boolean>;
+  verifyOTP: (email: string, token: string, type: 'signup' | 'recovery') => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -475,6 +478,92 @@ export const useAuthStore = create<AuthState>((set) => ({
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? translateError(error.message) : 'Ошибка обновления пароля';
+      set({ isLoading: false, error: errorMessage });
+      return false;
+    }
+  },
+
+  sendOTP: async (email: string, type: 'signup' | 'recovery') => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      if (type === 'recovery') {
+        // Для recovery используем signInWithOtp
+        // ВАЖНО: В Supabase Dashboard нужно настроить отправку OTP кодов:
+        // 1. Authentication -> Email Templates -> Magic Link
+        // 2. Изменить шаблон так, чтобы он отправлял OTP код, а не ссылку
+        // 3. Или использовать шаблон "OTP" вместо "Magic Link"
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: false,
+            // Не указываем emailRedirectTo - это заставит отправить OTP код
+          },
+        });
+        
+        if (error) {
+          if (import.meta.env.DEV) {
+            console.error('[sendOTP] Recovery OTP error:', error);
+            console.warn('[sendOTP] Если приходит ссылка вместо кода, настройте Email Templates в Supabase Dashboard');
+          }
+          throw error;
+        }
+      } else {
+        // Для signup используем signInWithOtp
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: true,
+          },
+        });
+
+        if (error) {
+          if (import.meta.env.DEV) {
+            console.error('[sendOTP] Signup OTP error:', error);
+          }
+          throw error;
+        }
+      }
+
+      set({ isLoading: false });
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? translateError(error.message) : 'Ошибка отправки кода';
+      set({ isLoading: false, error: errorMessage });
+      return false;
+    }
+  },
+
+  verifyOTP: async (email: string, token: string, type: 'signup' | 'recovery') => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: type === 'signup' ? 'signup' : 'recovery',
+      });
+
+      if (error) throw error;
+
+      if (data.session) {
+        // Если есть сессия, обновляем состояние
+        set({
+          session: data.session,
+          user: data.user,
+          isLoading: false,
+        });
+        
+        if (data.user) {
+          await loadUserData(data.user.id);
+        }
+      } else {
+        set({ isLoading: false });
+      }
+
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? translateError(error.message) : 'Ошибка проверки кода';
       set({ isLoading: false, error: errorMessage });
       return false;
     }
