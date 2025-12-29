@@ -21,21 +21,66 @@ export function AuthPage() {
   const [resetSent, setResetSent] = useState(false);
   const [passwordUpdated, setPasswordUpdated] = useState(false);
 
-  const { signIn, signUp, resetPassword, updatePassword, isLoading, error, clearError } = useAuthStore();
+  const { signIn, signUp, resetPassword, updatePassword, isLoading, error, clearError, user } = useAuthStore();
+  
+  // Логируем изменения user и mode для диагностики
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[AuthPage] State changed:', { 
+        hasUser: !!user, 
+        userId: user?.id, 
+        email: user?.email,
+        mode,
+        pathname: location.pathname,
+        hasHash: !!location.hash
+      });
+    }
+  }, [user, mode, location.pathname, location.hash]);
 
   // Обработка callback от Supabase для reset password
   useEffect(() => {
     const handleResetPasswordCallback = async () => {
       // Проверяем, есть ли hash в URL (Supabase передает параметры через hash)
       if (location.hash) {
+        if (import.meta.env.DEV) {
+          console.log('[reset-password] ===== CALLBACK HANDLING START =====');
+          console.log('[reset-password] Full hash:', location.hash.substring(0, 100) + '...');
+        }
+        
         try {
           // Парсим hash параметры
           const hashParams = new URLSearchParams(location.hash.substring(1));
           const type = hashParams.get('type');
           const accessToken = hashParams.get('access_token');
           const refreshToken = hashParams.get('refresh_token');
+          const error = hashParams.get('error');
+          const errorDescription = hashParams.get('error_description');
+          
+          if (import.meta.env.DEV) {
+            console.log('[reset-password] Parsed params:', { 
+              type, 
+              hasAccessToken: !!accessToken, 
+              hasRefreshToken: !!refreshToken,
+              error,
+              errorDescription
+            });
+          }
+          
+          // Проверяем на ошибки в URL
+          if (error) {
+            if (import.meta.env.DEV) {
+              console.error('[reset-password] Error in URL:', error, errorDescription);
+            }
+            setLocalError(translateError(errorDescription || error) || 'Ошибка обработки ссылки');
+            window.history.replaceState(null, '', '/auth/reset-password');
+            return;
+          }
           
           if (type === 'recovery' && accessToken) {
+            if (import.meta.env.DEV) {
+              console.log('[reset-password] Setting session from recovery token...');
+            }
+            
             // Устанавливаем сессию из токена
             const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
@@ -43,33 +88,74 @@ export function AuthPage() {
             });
 
             if (sessionError) {
+              if (import.meta.env.DEV) {
+                console.error('[reset-password] Session error:', sessionError);
+              }
               setLocalError(translateError(sessionError.message) || 'Ссылка недействительна или истекла');
-              // Очищаем hash из URL
               window.history.replaceState(null, '', '/auth/reset-password');
               return;
             }
 
-            // После установки сессии ждем немного для обновления состояния
-            // и переключаемся в режим сброса пароля
-            setMode('reset');
-            // Очищаем hash из URL
-            window.history.replaceState(null, '', '/auth/reset-password');
+            if (import.meta.env.DEV) {
+              console.log('[reset-password] Session set successfully:', {
+                hasSession: !!sessionData?.session,
+                userId: sessionData?.session?.user?.id,
+                email: sessionData?.session?.user?.email
+              });
+            }
+
+            // Проверяем, что сессия установлена
+            if (sessionData?.session) {
+              // Переключаемся в режим сброса пароля ПЕРЕД очисткой hash
+              setMode('reset');
+              if (import.meta.env.DEV) {
+                console.log('[reset-password] Mode set to "reset"');
+                console.log('[reset-password] Current user after setSession:', sessionData.session.user.id);
+              }
+              // Очищаем hash из URL ПОСЛЕ установки режима
+              window.history.replaceState(null, '', '/auth/reset-password');
+              
+              if (import.meta.env.DEV) {
+                console.log('[reset-password] ===== CALLBACK HANDLING SUCCESS =====');
+              }
+            } else {
+              if (import.meta.env.DEV) {
+                console.error('[reset-password] Session data is missing!');
+              }
+              setLocalError('Не удалось установить сессию');
+              window.history.replaceState(null, '', '/auth/reset-password');
+            }
+          } else {
+            if (import.meta.env.DEV) {
+              console.warn('[reset-password] Invalid recovery params:', { type, hasAccessToken: !!accessToken });
+            }
+            // Если нет recovery токена, но есть hash, возможно это ошибка
+            if (location.hash && !type) {
+              setLocalError('Неверная ссылка для сброса пароля');
+            }
           }
         } catch (err) {
           if (import.meta.env.DEV) {
-            console.error('Error handling reset password callback:', err);
+            console.error('[reset-password] Exception handling callback:', err);
           }
           setLocalError('Ошибка обработки ссылки');
           window.history.replaceState(null, '', '/auth/reset-password');
+        }
+      } else {
+        if (import.meta.env.DEV) {
+          console.log('[reset-password] No hash in URL, pathname:', location.pathname, 'mode:', mode);
         }
       }
     };
 
     // Проверяем, если мы на странице reset-password
     if (location.pathname.includes('/auth/reset-password')) {
+      if (import.meta.env.DEV) {
+        console.log('[reset-password] On reset-password page, handling callback...');
+      }
       handleResetPasswordCallback();
     }
-  }, [location]);
+  }, [location, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,9 +228,30 @@ export function AuthPage() {
       await signUp(email, password);
     } else if (mode === 'reset') {
       // Обновление пароля
+      if (import.meta.env.DEV) {
+        console.log('[reset-password] Submitting new password...');
+        console.log('[reset-password] Current user:', user?.id);
+        console.log('[reset-password] Password length:', password.length);
+      }
+      
       const success = await updatePassword(password);
+      
+      if (import.meta.env.DEV) {
+        console.log('[reset-password] Update password result:', success);
+        if (!success) {
+          console.error('[reset-password] Update failed, error:', error);
+        }
+      }
+      
       if (success) {
+        if (import.meta.env.DEV) {
+          console.log('[reset-password] Password updated successfully, showing success screen');
+        }
         setPasswordUpdated(true);
+      } else {
+        if (import.meta.env.DEV) {
+          console.error('[reset-password] Password update failed');
+        }
       }
     }
   };

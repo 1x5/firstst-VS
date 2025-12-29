@@ -174,9 +174,13 @@ function AuthenticatedApp() {
     return <AuthPage />;
   }
 
-  // Если пользователь авторизован, но на странице reset-password, показываем AuthPage
-  // (для обработки recovery сессии)
+  // Если на странице reset-password, ВСЕГДА показываем AuthPage
+  // (для обработки recovery сессии из email ссылки)
+  // Это нужно, потому что recovery сессия может быть установлена, но user еще не загружен
   if (location.pathname.includes('/auth/reset-password')) {
+    if (import.meta.env.DEV) {
+      console.log('[App] On reset-password page, showing AuthPage (user:', !!user, ')');
+    }
     return <AuthPage />;
   }
 
