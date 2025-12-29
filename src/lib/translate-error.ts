@@ -65,6 +65,84 @@ export const translateError = (errorMessage: string): string => {
     return 'Пароль слишком простой';
   }
   
+  // Ошибки смены пароля
+  if (lowerMessage.includes('new password should be different') || lowerMessage.includes('password should be different from the old')) {
+    return 'Новый пароль должен отличаться от старого';
+  }
+  
+  if (lowerMessage.includes('same password') || lowerMessage.includes('cannot reuse')) {
+    return 'Новый пароль должен отличаться от текущего';
+  }
+  
+  if (lowerMessage.includes('password update') && lowerMessage.includes('failed')) {
+    return 'Не удалось обновить пароль';
+  }
+  
+  if (lowerMessage.includes('password reset') && lowerMessage.includes('failed')) {
+    return 'Не удалось сбросить пароль';
+  }
+  
+  // Общие ошибки пароля
+  if (lowerMessage.includes('password') && lowerMessage.includes('required')) {
+    return 'Пароль обязателен';
+  }
+  
+  if (lowerMessage.includes('password') && lowerMessage.includes('invalid')) {
+    return 'Неверный формат пароля';
+  }
+  
+  // Ошибки email
+  if (lowerMessage.includes('email') && lowerMessage.includes('required')) {
+    return 'Email обязателен';
+  }
+  
+  if (lowerMessage.includes('email') && lowerMessage.includes('invalid') || lowerMessage.includes('invalid email')) {
+    return 'Неверный формат email';
+  }
+  
+  // Ошибки сессии
+  if (lowerMessage.includes('session') && (lowerMessage.includes('expired') || lowerMessage.includes('invalid'))) {
+    return 'Сессия истекла. Пожалуйста, войдите заново';
+  }
+  
+  if (lowerMessage.includes('jwt') && (lowerMessage.includes('expired') || lowerMessage.includes('invalid'))) {
+    return 'Сессия истекла. Пожалуйста, войдите заново';
+  }
+  
+  // Ошибки обновления пользователя
+  if (lowerMessage.includes('user update') && lowerMessage.includes('failed')) {
+    return 'Не удалось обновить данные пользователя';
+  }
+  
+  if (lowerMessage.includes('email update') && lowerMessage.includes('failed')) {
+    return 'Не удалось обновить email';
+  }
+  
+  // Общие ошибки Supabase
+  if (lowerMessage.includes('database') && lowerMessage.includes('error')) {
+    return 'Ошибка базы данных. Попробуйте позже';
+  }
+  
+  if (lowerMessage.includes('server error') || lowerMessage.includes('internal error')) {
+    return 'Ошибка сервера. Попробуйте позже';
+  }
+  
+  if (lowerMessage.includes('unauthorized') || lowerMessage.includes('access denied')) {
+    return 'Доступ запрещен. Войдите в систему';
+  }
+  
+  if (lowerMessage.includes('forbidden')) {
+    return 'Доступ запрещен';
+  }
+  
+  if (lowerMessage.includes('not found')) {
+    return 'Ресурс не найден';
+  }
+  
+  if (lowerMessage.includes('bad request') || lowerMessage.includes('invalid request')) {
+    return 'Неверный запрос. Проверьте введенные данные';
+  }
+  
   // Возвращаем оригинальное сообщение, если не найдено перевода
   return errorMessage;
 };

@@ -19,22 +19,34 @@ export function AuthPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState('');
   const [resetSent, setResetSent] = useState(false);
-  const [passwordUpdated, setPasswordUpdated] = useState(() => {
-    // Восстанавливаем состояние из sessionStorage
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('passwordUpdated') === 'true';
+  const [passwordUpdated, setPasswordUpdated] = useState(false);
+  const { signIn, signUp, resetPassword, updatePassword, isLoading, error, clearError, user } = useAuthStore();
+  
+  // Восстанавливаем состояние passwordUpdated из sessionStorage только если пользователь НЕ авторизован
+  // Это нужно, чтобы показывать экран успеха только сразу после обновления пароля, а не после авторизации
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !user) {
+      const saved = sessionStorage.getItem('passwordUpdated') === 'true';
+      if (saved) {
+        setPasswordUpdated(true);
+        // Очищаем сразу, чтобы не показывать снова после авторизации
+        sessionStorage.removeItem('passwordUpdated');
+      }
+    } else if (user) {
+      // Если пользователь уже авторизован, очищаем флаг
+      setPasswordUpdated(false);
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('passwordUpdated');
+      }
     }
-    return false;
-  });
-
-  const { signIn, signUp, resetPassword, updatePassword, isLoading, error, clearError } = useAuthStore();
+  }, [user]);
   
   // Восстанавливаем режим reset из sessionStorage при монтировании
   useEffect(() => {
-    if (location.pathname.includes('/auth/reset-password') && passwordUpdated) {
+    if (location.pathname.includes('/auth/reset-password') && !user) {
       setMode('reset');
     }
-  }, [location.pathname, passwordUpdated]);
+  }, [location.pathname, user]);
   
 
   // Упрощенная обработка callback от Supabase для reset password
@@ -227,7 +239,9 @@ export function AuthPage() {
   const displayError = localError || error;
 
   // Экран успешного обновления пароля
-  if (mode === 'reset' && passwordUpdated) {
+  // Показываем только если passwordUpdated = true И пользователь НЕ авторизован
+  // Это гарантирует, что экран показывается только сразу после обновления пароля, а не после авторизации
+  if (mode === 'reset' && passwordUpdated && !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="w-full max-w-sm space-y-6 text-center">
