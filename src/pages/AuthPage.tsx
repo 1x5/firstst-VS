@@ -32,18 +32,31 @@ export function AuthPage() {
   // Восстанавливаем режим reset из sessionStorage при монтировании
   useEffect(() => {
     if (location.pathname.includes('/auth/reset-password')) {
-      if (location.hash) {
-        // Если есть hash, значит это callback от Supabase
+      // Проверяем, есть ли hash в sessionStorage (мог быть сохранен через 404.html)
+      const savedHash = typeof window !== 'undefined' 
+        ? sessionStorage.getItem('_reset_password_hash')
+        : null;
+      
+      // Логируем всегда (не только в dev), чтобы видеть в production
+      console.log('[reset-password] Mount check:', {
+        pathname: location.pathname,
+        hashInUrl: !!location.hash,
+        hashInStorage: !!savedHash,
+        passwordUpdated,
+        savedHashPreview: savedHash ? savedHash.substring(0, 50) + '...' : null
+      });
+      
+      if (location.hash || savedHash) {
+        // Если есть hash (в URL или sessionStorage), значит это callback от Supabase
         // Режим будет установлен в handleResetPasswordCallback
+        console.log('[reset-password] Hash detected, will be processed in callback handler');
         return;
       }
       
-      // Если нет hash, но есть сохраненное состояние
+      // Если нет hash, но есть сохраненное состояние успешного обновления
       if (passwordUpdated) {
         setMode('reset');
-        if (import.meta.env.DEV) {
-          console.log('[reset-password] Restored reset mode from sessionStorage');
-        }
+        console.log('[reset-password] Restored reset mode from sessionStorage (password already updated)');
       }
     }
   }, [location.pathname, location.hash, passwordUpdated]);
@@ -87,22 +100,20 @@ export function AuthPage() {
       // Также проверяем window.location.hash напрямую (может быть еще не обработан React Router)
       const hashFromWindow = typeof window !== 'undefined' ? window.location.hash : null;
       
-      if (import.meta.env.DEV) {
-        console.log('[reset-password] Hash sources:', {
-          fromUrl: hashFromUrl ? 'yes (' + hashFromUrl.substring(0, 30) + '...)' : 'no',
-          fromWindow: hashFromWindow ? 'yes (' + hashFromWindow.substring(0, 30) + '...)' : 'no',
-          fromStorage: hashFromStorage ? 'yes (' + hashFromStorage.substring(0, 30) + '...)' : 'no',
-        });
-      }
+      // Логируем всегда (не только в dev), чтобы видеть в production
+      console.log('[reset-password] Hash sources:', {
+        fromUrl: hashFromUrl ? 'yes (' + hashFromUrl.substring(0, 30) + '...)' : 'no',
+        fromWindow: hashFromWindow ? 'yes (' + hashFromWindow.substring(0, 30) + '...)' : 'no',
+        fromStorage: hashFromStorage ? 'yes (' + hashFromStorage.substring(0, 30) + '...)' : 'no',
+      });
       
       // Приоритет: hash из window.location (самый надежный), затем из location.hash, затем из sessionStorage
       const hashToProcess = hashFromWindow || hashFromUrl || (hashFromStorage ? `#${hashFromStorage}` : null);
       
       if (!hashToProcess) {
-        if (import.meta.env.DEV) {
-          console.warn('[reset-password] ⚠️ No hash found in URL, window.location, or sessionStorage');
-          console.warn('[reset-password] This means the recovery link was not processed correctly');
-        }
+        console.warn('[reset-password] ⚠️ No hash found in URL, window.location, or sessionStorage');
+        console.warn('[reset-password] This means the recovery link was not processed correctly');
+        console.warn('[reset-password] SessionStorage keys:', Object.keys(sessionStorage));
         return;
       }
       
@@ -111,15 +122,11 @@ export function AuthPage() {
         const hashValue = hashToProcess.startsWith('#') ? hashToProcess.substring(1) : hashToProcess;
         if (!hashFromStorage || hashFromStorage !== hashValue) {
           sessionStorage.setItem('_reset_password_hash', hashValue);
-          if (import.meta.env.DEV) {
-            console.log('[reset-password] Saved hash to sessionStorage');
-          }
+          console.log('[reset-password] Saved hash to sessionStorage');
         }
       }
       
-      if (import.meta.env.DEV) {
-        console.log('[reset-password] Processing hash:', hashToProcess.substring(0, 100) + '...');
-      }
+      console.log('[reset-password] Processing hash:', hashToProcess.substring(0, 100) + '...');
       
       try {
           // Парсим hash параметры (убираем # в начале)
@@ -233,17 +240,14 @@ export function AuthPage() {
 
     // Проверяем, если мы на странице reset-password
     if (location.pathname.includes('/auth/reset-password')) {
-      if (import.meta.env.DEV) {
-        console.log('[reset-password] On reset-password page, handling callback...');
-        console.log('[reset-password] Current mode:', mode);
-        console.log('[reset-password] Location hash:', location.hash ? location.hash.substring(0, 50) + '...' : 'empty');
-        console.log('[reset-password] SessionStorage hash:', sessionStorage.getItem('_reset_password_hash') ? sessionStorage.getItem('_reset_password_hash')!.substring(0, 50) + '...' : 'empty');
-      }
+      console.log('[reset-password] On reset-password page, handling callback...');
+      console.log('[reset-password] Current mode:', mode);
+      console.log('[reset-password] Location hash:', location.hash ? location.hash.substring(0, 50) + '...' : 'empty');
+      const storageHash = typeof window !== 'undefined' ? sessionStorage.getItem('_reset_password_hash') : null;
+      console.log('[reset-password] SessionStorage hash:', storageHash ? storageHash.substring(0, 50) + '...' : 'empty');
       handleResetPasswordCallback();
     } else {
-      if (import.meta.env.DEV) {
-        console.log('[reset-password] Not on reset-password page, pathname:', location.pathname);
-      }
+      console.log('[reset-password] Not on reset-password page, pathname:', location.pathname);
     }
   }, [location.pathname, location.hash, mode]);
 

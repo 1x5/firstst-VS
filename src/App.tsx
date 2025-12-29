@@ -170,15 +170,14 @@ function AuthenticatedApp() {
     const redirectPath = sessionStorage.getItem('_404_redirect');
     const savedHash = sessionStorage.getItem('_reset_password_hash');
     
-    if (import.meta.env.DEV) {
-      console.log('[App] 404 redirect check:', {
-        hasRedirectPath: !!redirectPath,
-        hasSavedHash: !!savedHash,
-        redirectPath: redirectPath?.substring(0, 100),
-        savedHash: savedHash?.substring(0, 50),
-        currentPath: location.pathname
-      });
-    }
+    // Логируем всегда (не только в dev), чтобы видеть в production
+    console.log('[App] 404 redirect check:', {
+      hasRedirectPath: !!redirectPath,
+      hasSavedHash: !!savedHash,
+      redirectPath: redirectPath?.substring(0, 100),
+      savedHash: savedHash?.substring(0, 50),
+      currentPath: location.pathname
+    });
     
     if (redirectPath) {
       sessionStorage.removeItem('_404_redirect');
@@ -188,9 +187,7 @@ function AuthenticatedApp() {
       if (hash && !savedHash) {
         // Сохраняем hash только если его еще нет в sessionStorage
         sessionStorage.setItem('_reset_password_hash', hash);
-        if (import.meta.env.DEV) {
-          console.log('[App] Saved hash from redirect path to sessionStorage');
-        }
+        console.log('[App] Saved hash from redirect path to sessionStorage');
       }
       
       // Используем сохраненный hash, если он есть
@@ -198,13 +195,13 @@ function AuthenticatedApp() {
       
       // Use replace to avoid adding to history
       // НЕ добавляем hash в navigate, так как он будет обработан в AuthPage
+      console.log('[App] Navigating to:', path);
       navigate(path, { replace: true });
       
-      if (import.meta.env.DEV) {
-        console.log('[App] Navigated to:', path);
-        console.log('[App] Hash will be processed in AuthPage from sessionStorage');
-        console.log('[App] Current hash in sessionStorage:', sessionStorage.getItem('_reset_password_hash') ? 'exists' : 'missing');
-      }
+      console.log('[App] Navigated to:', path);
+      console.log('[App] Hash will be processed in AuthPage from sessionStorage');
+      const finalHash = typeof window !== 'undefined' ? sessionStorage.getItem('_reset_password_hash') : null;
+      console.log('[App] Current hash in sessionStorage:', finalHash ? 'exists (' + finalHash.substring(0, 30) + '...)' : 'missing');
     }
   }, [navigate, location.pathname]);
 
