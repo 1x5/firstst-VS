@@ -107,13 +107,27 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.log('[initialize] ===== STARTING INITIALIZATION =====');
     }
     
+    // Устанавливаем таймаут для защиты от зависания
+    const timeoutId = setTimeout(() => {
+      if (import.meta.env.DEV) {
+        console.warn('[initialize] ⚠️ Initialization timeout, forcing isLoading to false');
+      }
+      set({
+        isLoading: false,
+        session: null,
+        user: null,
+      });
+    }, 10000); // 10 секунд максимум
+    
     try {
       // Проверяем доступность localStorage (может быть заблокирован в приватном режиме)
       let localStorageAvailable = false;
       try {
-        localStorage.setItem('_test', 'test');
-        localStorage.removeItem('_test');
-        localStorageAvailable = true;
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem('_test', 'test');
+          localStorage.removeItem('_test');
+          localStorageAvailable = true;
+        }
       } catch (e) {
         if (import.meta.env.DEV) {
           console.warn('[initialize] localStorage not available (private mode?), using memory storage');
@@ -125,7 +139,14 @@ export const useAuthStore = create<AuthState>((set) => ({
         console.log('[initialize] localStorage available:', localStorageAvailable);
       }
       
+      // Проверяем доступность Supabase
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+      
       const { data: { session }, error } = await supabase.auth.getSession();
+      
+      clearTimeout(timeoutId);
       
       if (error) {
         if (import.meta.env.DEV) {
@@ -202,6 +223,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         });
       });
     } catch (error) {
+      clearTimeout(timeoutId);
+      
       if (import.meta.env.DEV) {
         console.error('[initialize] ===== INITIALIZATION ERROR =====');
         console.error('[initialize] Error:', error);

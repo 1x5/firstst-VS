@@ -147,7 +147,22 @@ function AuthenticatedApp() {
   const location = useLocation();
 
   useEffect(() => {
-    initialize();
+    // Добавляем таймаут для защиты от зависания
+    const timeoutId = setTimeout(() => {
+      if (import.meta.env.DEV) {
+        console.warn('[App] ⚠️ Initialize timeout, forcing render');
+      }
+      // Принудительно обновляем состояние, если инициализация зависла
+      useAuthStore.setState({ isLoading: false });
+    }, 15000); // 15 секунд максимум
+    
+    initialize().finally(() => {
+      clearTimeout(timeoutId);
+    });
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, [initialize]);
 
   // Handle 404 redirect from GitHub Pages
