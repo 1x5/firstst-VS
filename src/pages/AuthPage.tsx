@@ -161,9 +161,12 @@ export function AuthPage() {
       // Прямой вызов signIn без дополнительной валидации
       const success = await signIn(email, password);
       if (success) {
-        // После успешного входа редирект произойдет автоматически через onAuthStateChange
-        // Но можно также явно перенаправить на главную
-        navigate('/', { replace: true });
+        console.log('[AuthPage] Login successful, waiting for user state update...');
+        // Ждем обновления состояния пользователя перед редиректом
+        // onAuthStateChange обновит user, и App.tsx автоматически покажет AppLayout
+        // Не делаем navigate сразу, чтобы дать время обновиться состоянию
+      } else {
+        console.log('[AuthPage] Login failed');
       }
       return;
     }

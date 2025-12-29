@@ -206,35 +206,29 @@ export const useAuthStore = create<AuthState>((set) => ({
           return;
         }
         
-        if (session?.user) {
-          // Проверяем, является ли это recovery сессией (для сброса пароля)
-          // Recovery сессии имеют тип 'recovery' в app_metadata или мы на странице reset-password
-          const isRecoverySession = session.user.app_metadata?.provider === 'email' && 
-            (typeof window !== 'undefined' && window.location.pathname.includes('/auth/reset-password'));
-          
-          // Для recovery сессий НЕ загружаем данные пользователя
-          // Это позволяет избежать ошибок RLS и проблем с сетью
-          if (!isRecoverySession) {
-            try {
-              await loadUserData(session.user.id);
-            } catch (error) {
-              if (import.meta.env.DEV) {
-                console.error('[onAuthStateChange] Error loading user data:', error);
-              }
-              // Не блокируем установку сессии при ошибках загрузки данных
-            }
-          } else {
-            if (import.meta.env.DEV) {
-              console.log('[onAuthStateChange] Recovery session detected, skipping user data load');
-            }
-          }
-        } else {
-          clearUserData();
-        }
+        // Обновляем состояние СНАЧАЛА, чтобы UI обновился немедленно
         set({
           session,
           user: session?.user ?? null,
         });
+        
+        if (session?.user) {
+          // Проверяем, является ли это recovery сессией (для сброса пароля)
+          const isRecoverySession = session.user.app_metadata?.provider === 'email' && 
+            (typeof window !== 'undefined' && window.location.pathname.includes('/auth/reset-password'));
+          
+          // Для recovery сессий НЕ загружаем данные пользователя
+          if (!isRecoverySession) {
+            // Загружаем данные в фоне, не блокируя UI
+            loadUserData(session.user.id).catch((error) => {
+              if (import.meta.env.DEV) {
+                console.error('[onAuthStateChange] Error loading user data (non-blocking):', error);
+              }
+            });
+          }
+        } else {
+          clearUserData();
+        }
       });
     } catch (error) {
       clearTimeout(timeoutId);
@@ -368,17 +362,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
       }
 
-      // Загружаем данные пользователя (не блокируем вход при ошибках)
-      try {
-        await loadUserData(data.user.id);
-      } catch (loadError) {
-        if (import.meta.env.DEV) {
-          console.error('[signIn] Error loading user data, but continuing login:', loadError);
-        }
-        // Продолжаем вход даже если загрузка данных не удалась
-      }
-
-      // Обновляем состояние - это важно сделать в любом случае
+      // Обновляем состояние СНАЧАЛА, чтобы UI обновился
       set({
         user: data.user,
         session: data.session,
@@ -390,6 +374,14 @@ export const useAuthStore = create<AuthState>((set) => ({
         console.log('[signIn] User object:', data.user);
         console.log('[signIn] Session object:', data.session);
       }
+
+      // Загружаем данные пользователя в фоне (не блокируем вход)
+      loadUserData(data.user.id).catch((loadError) => {
+        if (import.meta.env.DEV) {
+          console.error('[signIn] Error loading user data (non-blocking):', loadError);
+        }
+        // Продолжаем работу даже если загрузка данных не удалась
+      });
 
       return true;
     } catch (error) {
