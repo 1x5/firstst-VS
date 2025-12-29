@@ -121,7 +121,6 @@ function AppLayout() {
             <Route path="/income" element={<IncomePage />} />
             <Route path="/expense" element={<ExpensePage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/auth/reset-password" element={<AuthPage />} />
           </Routes>
         </div>
       </main>
@@ -169,9 +168,15 @@ function AuthenticatedApp() {
     return <LoadingScreen />;
   }
 
-  // Показываем AuthPage для страницы сброса пароля, даже если пользователь авторизован
+  // Показываем AuthPage для неавторизованных пользователей и для страницы сброса пароля
   // Это нужно для обработки recovery сессии из email ссылки
-  if (!user || location.pathname.includes('/auth/reset-password')) {
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  // Если пользователь авторизован, но на странице reset-password, показываем AuthPage
+  // (для обработки recovery сессии)
+  if (location.pathname.includes('/auth/reset-password')) {
     return <AuthPage />;
   }
 

@@ -93,6 +93,22 @@ export function AuthPage() {
       return;
     }
 
+    // Для входа не нужна валидация пароля - Supabase сам проверит
+    if (mode === 'login') {
+      if (!password) {
+        setLocalError('Введите пароль');
+        return;
+      }
+      // Прямой вызов signIn без дополнительной валидации
+      const success = await signIn(email, password);
+      if (success) {
+        // После успешного входа редирект произойдет автоматически через onAuthStateChange
+        // Но можно также явно перенаправить на главную
+        navigate('/', { replace: true });
+      }
+      return;
+    }
+
     if (!password) {
       setLocalError('Введите пароль');
       return;
@@ -122,9 +138,7 @@ export function AuthPage() {
       }
     }
 
-    if (mode === 'login') {
-      await signIn(email, password);
-    } else if (mode === 'register') {
+    if (mode === 'register') {
       await signUp(email, password);
     } else if (mode === 'reset') {
       // Обновление пароля

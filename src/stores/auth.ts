@@ -28,42 +28,66 @@ interface AuthState {
 
 // Функция для загрузки данных пользователя с оптимизацией через React Query
 const loadUserData = async (userId: string) => {
-  // Получаем queryClient из глобальной переменной (устанавливается в main.tsx)
-  // Это позволяет React Query управлять кешем и дедупликацией запросов
-  const queryClient: QueryClient | undefined = typeof window !== 'undefined' 
-    ? (window as any).__REACT_QUERY_CLIENT__
-    : undefined;
+  if (import.meta.env.DEV) {
+    console.log('[loadUserData] Starting data load for user:', userId);
+  }
 
-  // Предзагружаем данные через React Query для кеширования и дедупликации
-  // Promise.all оптимизирует параллельную загрузку всех данных одновременно
-  await Promise.all([
-    // Загружаем транзакции
-    queryClient 
-      ? queryClient.prefetchQuery({
-          queryKey: ['transactions', 50, 0],
-          queryFn: () => transactionsService.getAll(50, 0),
-          staleTime: 1000 * 60 * 2,
-        }).then(() => useFinanceStore.getState().loadTransactions())
-      : useFinanceStore.getState().loadTransactions(),
-    
-    // Загружаем категории
-    queryClient
-      ? queryClient.prefetchQuery({
-          queryKey: ['categories', userId],
-          queryFn: () => categoriesService.initializeDefaults(userId),
-          staleTime: 1000 * 60 * 5,
-        }).then(() => useCategoriesStore.getState().loadCategories(userId))
-      : useCategoriesStore.getState().loadCategories(userId),
-    
-    // Загружаем логи
-    queryClient
-      ? queryClient.prefetchQuery({
-          queryKey: ['activityLogs', userId, 100],
-          queryFn: () => activityLogsService.getAll(100),
-          staleTime: 1000 * 30,
-        }).then(() => useActivityLogStore.getState().loadLogs(userId))
-      : useActivityLogStore.getState().loadLogs(userId),
-  ]);
+  try {
+    // Получаем queryClient из глобальной переменной (устанавливается в main.tsx)
+    // Это позволяет React Query управлять кешем и дедупликацией запросов
+    const queryClient: QueryClient | undefined = typeof window !== 'undefined' 
+      ? (window as any).__REACT_QUERY_CLIENT__
+      : undefined;
+
+    // Предзагружаем данные через React Query для кеширования и дедупликации
+    // Promise.allSettled используется вместо Promise.all, чтобы ошибки в одном запросе не блокировали остальные
+    const results = await Promise.allSettled([
+      // Загружаем транзакции
+      queryClient 
+        ? queryClient.prefetchQuery({
+            queryKey: ['transactions', 50, 0],
+            queryFn: () => transactionsService.getAll(50, 0),
+            staleTime: 1000 * 60 * 2,
+          }).then(() => useFinanceStore.getState().loadTransactions())
+        : useFinanceStore.getState().loadTransactions(),
+      
+      // Загружаем категории
+      queryClient
+        ? queryClient.prefetchQuery({
+            queryKey: ['categories', userId],
+            queryFn: () => categoriesService.initializeDefaults(userId),
+            staleTime: 1000 * 60 * 5,
+          }).then(() => useCategoriesStore.getState().loadCategories(userId))
+        : useCategoriesStore.getState().loadCategories(userId),
+      
+      // Загружаем логи
+      queryClient
+        ? queryClient.prefetchQuery({
+            queryKey: ['activityLogs', userId, 100],
+            queryFn: () => activityLogsService.getAll(100),
+            staleTime: 1000 * 30,
+          }).then(() => useActivityLogStore.getState().loadLogs(userId))
+        : useActivityLogStore.getState().loadLogs(userId),
+    ]);
+
+    // Логируем результаты
+    if (import.meta.env.DEV) {
+      results.forEach((result, index) => {
+        const names = ['transactions', 'categories', 'activityLogs'];
+        if (result.status === 'rejected') {
+          console.error(`[loadUserData] Failed to load ${names[index]}:`, result.reason);
+        } else {
+          console.log(`[loadUserData] Successfully loaded ${names[index]}`);
+        }
+      });
+    }
+  } catch (error) {
+    // Не блокируем вход, если загрузка данных не удалась
+    if (import.meta.env.DEV) {
+      console.error('[loadUserData] Error loading user data:', error);
+    }
+    // Продолжаем выполнение - пользователь все равно должен войти
+  }
 };
 
 // Функция для очистки данных
@@ -95,9 +119,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
 
       // Подписываемся на изменения авторизации
-      supabase.auth.onAuthStateChange(async (_event, session) => {
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        if (import.meta.env.DEV) {
+          console.log('[onAuthStateChange] Event:', event, 'User:', session?.user?.id);
+        }
+        
         if (session?.user) {
-          await loadUserData(session.user.id);
+          try {
+            await loadUserData(session.user.id);
+          } catch (error) {
+            if (import.meta.env.DEV) {
+              console.error('[onAuthStateChange] Error loading user data:', error);
+            }
+          }
         } else {
           clearUserData();
         }
@@ -161,12 +195,22 @@ export const useAuthStore = create<AuthState>((set) => ({
         const lockoutUntil = window.localStorage.getItem(lockoutKey);
         if (lockoutUntil && Date.now() < parseInt(lockoutUntil, 10)) {
           const minutesLeft = Math.ceil((parseInt(lockoutUntil, 10) - Date.now()) / 60000);
+          const errorMsg = `Слишком много попыток. Попробуйте через ${minutesLeft} минут`;
+          
+          if (import.meta.env.DEV) {
+            console.warn('[signIn] Account locked:', { email, lockoutUntil, minutesLeft });
+          }
+          
           set({
             isLoading: false,
-            error: `Слишком много попыток. Попробуйте через ${minutesLeft} минут`,
+            error: errorMsg,
           });
           return false;
         }
+      }
+      
+      if (import.meta.env.DEV) {
+        console.log('[signIn] Attempting login for:', email);
       }
       
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -175,41 +219,81 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
 
       if (error) {
+        if (import.meta.env.DEV) {
+          console.error('[signIn] Login error:', error);
+        }
+        
         // Увеличиваем счетчик неудачных попыток
         if (typeof window !== 'undefined' && window.localStorage) {
           const attempts = parseInt(window.localStorage.getItem(attemptKey) || '0', 10);
           const newAttempts = attempts + 1;
           window.localStorage.setItem(attemptKey, String(newAttempts));
           
+          if (import.meta.env.DEV) {
+            console.warn('[signIn] Failed attempt:', { email, attempts: newAttempts, maxAttempts });
+          }
+          
           // Блокируем после maxAttempts попыток
           if (newAttempts >= maxAttempts) {
             const lockoutUntil = Date.now() + lockoutTime;
             window.localStorage.setItem(lockoutKey, String(lockoutUntil));
+            
+            if (import.meta.env.DEV) {
+              console.warn('[signIn] Account locked after', maxAttempts, 'attempts');
+            }
           }
         }
         
         throw error;
       }
 
+      if (import.meta.env.DEV) {
+        console.log('[signIn] Login successful:', { email, userId: data.user?.id });
+      }
+
       // Сбрасываем счетчик при успешном входе
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.removeItem(attemptKey);
         window.localStorage.removeItem(lockoutKey);
+        
+        if (import.meta.env.DEV) {
+          console.log('[signIn] Cleared login attempt counters');
+        }
       }
 
-      await loadUserData(data.user.id);
+      // Загружаем данные пользователя (не блокируем вход при ошибках)
+      try {
+        await loadUserData(data.user.id);
+      } catch (loadError) {
+        if (import.meta.env.DEV) {
+          console.error('[signIn] Error loading user data, but continuing login:', loadError);
+        }
+        // Продолжаем вход даже если загрузка данных не удалась
+      }
 
+      // Обновляем состояние - это важно сделать в любом случае
       set({
         user: data.user,
         session: data.session,
         isLoading: false,
       });
 
+      if (import.meta.env.DEV) {
+        console.log('[signIn] State updated, user should be redirected');
+        console.log('[signIn] User object:', data.user);
+        console.log('[signIn] Session object:', data.session);
+      }
+
       return true;
     } catch (error) {
       const message = error instanceof Error 
         ? translateError(error.message)
         : 'Ошибка входа';
+      
+      if (import.meta.env.DEV) {
+        console.error('[signIn] Final error:', { error, message });
+      }
+      
       set({
         isLoading: false,
         error: message,
@@ -246,18 +330,40 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       // Всегда используем production URL для redirect
       const redirectUrl = 'https://uchet1.ru/auth/reset-password';
+      
+      if (import.meta.env.DEV) {
+        console.log('[resetPassword] Sending reset email to:', email);
+        console.log('[resetPassword] Redirect URL:', redirectUrl);
+      }
+      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.error('[resetPassword] Supabase error:', error);
+        }
+        throw error;
+      }
+
+      if (import.meta.env.DEV) {
+        console.log('[resetPassword] Email sent successfully');
+      }
 
       set({ isLoading: false });
       return true;
     } catch (error) {
+      const errorMessage = error instanceof Error ? translateError(error.message) : 'Ошибка отправки письма';
+      
+      if (import.meta.env.DEV) {
+        console.error('[resetPassword] Error:', error);
+        console.error('[resetPassword] Error message:', errorMessage);
+      }
+      
       set({
         isLoading: false,
-        error: error instanceof Error ? translateError(error.message) : 'Ошибка отправки письма',
+        error: errorMessage,
       });
       return false;
     }
