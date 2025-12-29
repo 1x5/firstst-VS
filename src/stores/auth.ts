@@ -103,13 +103,60 @@ export const useAuthStore = create<AuthState>((set) => ({
   error: null,
 
   initialize: async () => {
+    if (import.meta.env.DEV) {
+      console.log('[initialize] ===== STARTING INITIALIZATION =====');
+    }
+    
     try {
+      // Проверяем доступность localStorage (может быть заблокирован в приватном режиме)
+      let localStorageAvailable = false;
+      try {
+        localStorage.setItem('_test', 'test');
+        localStorage.removeItem('_test');
+        localStorageAvailable = true;
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          console.warn('[initialize] localStorage not available (private mode?), using memory storage');
+        }
+        localStorageAvailable = false;
+      }
+      
+      if (import.meta.env.DEV) {
+        console.log('[initialize] localStorage available:', localStorageAvailable);
+      }
+      
       const { data: { session }, error } = await supabase.auth.getSession();
       
-      if (error) throw error;
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.error('[initialize] getSession error:', error);
+        }
+        // Не пробрасываем ошибку, просто продолжаем без сессии
+        set({
+          session: null,
+          user: null,
+          isLoading: false,
+        });
+        return;
+      }
+      
+      if (import.meta.env.DEV) {
+        console.log('[initialize] Session check:', {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          email: session?.user?.email
+        });
+      }
       
       if (session?.user) {
-        await loadUserData(session.user.id);
+        try {
+          await loadUserData(session.user.id);
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.error('[initialize] Error loading user data:', error);
+          }
+          // Продолжаем даже если загрузка данных не удалась
+        }
       }
       
       set({
@@ -117,6 +164,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         user: session?.user ?? null,
         isLoading: false,
       });
+      
+      if (import.meta.env.DEV) {
+        console.log('[initialize] ===== INITIALIZATION SUCCESS =====');
+      }
 
       // Подписываемся на изменения авторизации
       supabase.auth.onAuthStateChange(async (event, session) => {
@@ -151,8 +202,17 @@ export const useAuthStore = create<AuthState>((set) => ({
         });
       });
     } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[initialize] ===== INITIALIZATION ERROR =====');
+        console.error('[initialize] Error:', error);
+      }
+      
+      // В случае ошибки все равно устанавливаем isLoading в false
+      // чтобы пользователь мог видеть страницу авторизации
       set({
         isLoading: false,
+        session: null,
+        user: null,
         error: error instanceof Error ? translateError(error.message) : 'Ошибка инициализации',
       });
     }
