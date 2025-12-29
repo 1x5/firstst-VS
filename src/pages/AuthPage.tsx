@@ -129,24 +129,26 @@ export function AuthPage() {
       console.log('[reset-password] Processing hash:', hashToProcess.substring(0, 100) + '...');
       
       try {
-          // Парсим hash параметры (убираем # в начале)
-          const hashString = hashToProcess.startsWith('#') ? hashToProcess.substring(1) : hashToProcess;
-          const hashParams = new URLSearchParams(hashString);
-          const type = hashParams.get('type');
-          const accessToken = hashParams.get('access_token');
-          const refreshToken = hashParams.get('refresh_token');
-          const error = hashParams.get('error');
-          const errorDescription = hashParams.get('error_description');
-          
-          if (import.meta.env.DEV) {
-            console.log('[reset-password] Parsed params:', { 
-              type, 
-              hasAccessToken: !!accessToken, 
-              hasRefreshToken: !!refreshToken,
-              error,
-              errorDescription
-            });
-          }
+        // Парсим hash параметры (убираем # в начале)
+        const hashString = hashToProcess.startsWith('#') ? hashToProcess.substring(1) : hashToProcess;
+        console.log('[reset-password] Hash string (without #):', hashString.substring(0, 100) + '...');
+        
+        const hashParams = new URLSearchParams(hashString);
+        const type = hashParams.get('type');
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const error = hashParams.get('error');
+        const errorDescription = hashParams.get('error_description');
+        
+        console.log('[reset-password] Parsed params:', { 
+          type, 
+          hasAccessToken: !!accessToken, 
+          accessTokenLength: accessToken?.length || 0,
+          hasRefreshToken: !!refreshToken,
+          refreshTokenLength: refreshToken?.length || 0,
+          error,
+          errorDescription
+        });
           
           // Проверяем на ошибки в URL
           if (error) {
