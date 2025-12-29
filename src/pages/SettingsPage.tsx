@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { sanitizeCategoryName, sanitizeDescription } from '@/lib/sanitize';
 import { User, FileText, Download, Upload, Eye, EyeOff, Save, RefreshCw, Palette, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -267,7 +268,9 @@ export function SettingsPage() {
     setDataError('');
     setDataSuccess('');
     
-    console.log('Starting save...');
+    if (import.meta.env.DEV) {
+      console.log('Starting save...');
+    }
 
     try {
       const lines = dataText.split('\n');
@@ -309,18 +312,20 @@ export function SettingsPage() {
             const amountMatch = beforeDate.match(/^([\d\s]+)/);
             
             if (amountMatch) {
-              const amount = parseFloat(amountMatch[1].replace(/\s/g, ''));
+              const amountStr = amountMatch[1].replace(/\s/g, '');
+              const amount = parseFloat(amountStr);
               const rest = beforeDate.slice(amountMatch[0].length).trim();
               const words = rest.split(' ');
               const categoryName = words[0] || 'Другое';
               const description = words.slice(1).join(' ');
               
-              if (!isNaN(amount) && amount > 0) {
+              // Валидация суммы: проверка на NaN, Infinity и максимальное значение
+              if (!isNaN(amount) && isFinite(amount) && amount > 0 && amount <= 999999999999) {
                 parsedTransactions.push({
                   type,
                   amount,
-                  categoryName,
-                  description,
+                  categoryName: sanitizeCategoryName(categoryName),
+                  description: sanitizeDescription(description),
                   date: parseDateTime(dateTime),
                 });
               }
@@ -329,7 +334,9 @@ export function SettingsPage() {
         }
       }
 
-      console.log('Parsed:', { categories: parsedCategories, transactions: parsedTransactions });
+      if (import.meta.env.DEV) {
+        console.log('Parsed:', { categories: parsedCategories, transactions: parsedTransactions });
+      }
 
       if (parsedCategories.length === 0 && parsedTransactions.length === 0) {
         setDataError('Не найдено данных для сохранения. Проверьте формат.');
@@ -337,7 +344,9 @@ export function SettingsPage() {
         return;
       }
 
-      console.log('Step 1: Deleting old transactions...');
+      if (import.meta.env.DEV) {
+        console.log('Step 1: Deleting old transactions...');
+      }
       // 1. Delete old transactions first (has foreign key to categories)
       const { error: delTxError } = await supabase
         .from('transactions')
@@ -345,12 +354,18 @@ export function SettingsPage() {
         .eq('user_id', user.id);
       
       if (delTxError) {
-        console.error('Delete transactions error:', delTxError);
+        if (import.meta.env.DEV) {
+          console.error('Delete transactions error:', delTxError);
+        }
         throw new Error(`Ошибка удаления транзакций: ${delTxError.message}`);
       }
-      console.log('Step 1: Done');
+      if (import.meta.env.DEV) {
+        console.log('Step 1: Done');
+      }
 
-      console.log('Step 2: Deleting old categories...');
+      if (import.meta.env.DEV) {
+        console.log('Step 2: Deleting old categories...');
+      }
       // 2. Delete old categories
       const { error: delCatError } = await supabase
         .from('categories')
@@ -358,12 +373,18 @@ export function SettingsPage() {
         .eq('user_id', user.id);
       
       if (delCatError) {
-        console.error('Delete categories error:', delCatError);
+        if (import.meta.env.DEV) {
+          console.error('Delete categories error:', delCatError);
+        }
         throw new Error(`Ошибка удаления категорий: ${delCatError.message}`);
       }
-      console.log('Step 2: Done');
+      if (import.meta.env.DEV) {
+        console.log('Step 2: Done');
+      }
 
-      console.log('Step 3: Inserting categories...');
+      if (import.meta.env.DEV) {
+        console.log('Step 3: Inserting categories...');
+      }
       // 3. Insert categories in batch
       let createdCats: { id: string; name: string; type: string }[] = [];
       if (parsedCategories.length > 0) {
@@ -371,20 +392,26 @@ export function SettingsPage() {
           .from('categories')
           .insert(parsedCategories.map(c => ({
             user_id: user.id,
-            name: c.name,
+            name: sanitizeCategoryName(c.name),
             type: c.type,
           })))
           .select();
         
         if (catError) {
-          console.error('Insert categories error:', catError);
+          if (import.meta.env.DEV) {
+            console.error('Insert categories error:', catError);
+          }
           throw new Error(`Ошибка создания категорий: ${catError.message}`);
         }
         createdCats = catData || [];
-        console.log('Step 3: Created categories:', createdCats.length);
+        if (import.meta.env.DEV) {
+          console.log('Step 3: Created categories:', createdCats.length);
+        }
       }
 
-      console.log('Step 4: Inserting transactions...');
+      if (import.meta.env.DEV) {
+        console.log('Step 4: Inserting transactions...');
+      }
       // 4. Insert transactions in batch
       if (parsedTransactions.length > 0) {
         const txData = parsedTransactions.map(t => {
@@ -407,24 +434,34 @@ export function SettingsPage() {
           .insert(txData);
         
         if (txError) {
-          console.error('Insert transactions error:', txError);
+          if (import.meta.env.DEV) {
+            console.error('Insert transactions error:', txError);
+          }
           throw new Error(`Ошибка создания транзакций: ${txError.message}`);
         }
-        console.log('Step 4: Done');
+        if (import.meta.env.DEV) {
+          console.log('Step 4: Done');
+        }
       }
 
-      console.log('Step 5: Reloading stores...');
+      if (import.meta.env.DEV) {
+        console.log('Step 5: Reloading stores...');
+      }
       // 5. Reload stores
       await useFinanceStore.getState().loadTransactions();
       await useCategoriesStore.getState().loadCategories(user.id);
       
-      console.log('Step 5: Done. Save complete!');
+      if (import.meta.env.DEV) {
+        console.log('Step 5: Done. Save complete!');
+      }
 
       setDataSuccess(`✓ ${parsedCategories.length} категорий, ${parsedTransactions.length} транзакций`);
       setTimeout(() => setDataSuccess(''), 5000);
       
     } catch (err) {
-      console.error('Save error:', err);
+      if (import.meta.env.DEV) {
+        console.error('Save error:', err);
+      }
       setDataError(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
       setSavingData(false);
@@ -539,13 +576,19 @@ export function SettingsPage() {
         // Показываем успех сразу, но проверяем ошибки в фоне
         emailUpdate.then((result) => {
           if (result.error) {
-            console.error('Email update error:', result.error);
+            if (import.meta.env.DEV) {
+              console.error('Email update error:', result.error);
+            }
             setAccountError(result.error.message || 'Ошибка обновления email');
           } else {
-            console.log('Email update successful');
+            if (import.meta.env.DEV) {
+              console.log('Email update successful');
+            }
           }
         }).catch((err) => {
-          console.error('Email update error:', err);
+          if (import.meta.env.DEV) {
+            console.error('Email update error:', err);
+          }
           setAccountError('Ошибка обновления email');
         });
         
@@ -567,7 +610,9 @@ export function SettingsPage() {
           throw new Error(passwordError);
         }
         
-        console.log('[PASSWORD] Starting password reset email...');
+        if (import.meta.env.DEV) {
+          console.log('[PASSWORD] Starting password reset email...');
+        }
         
         // Для смены пароля используем resetPasswordForEmail
         // Это отправляет письмо с ссылкой для смены пароля
@@ -584,17 +629,23 @@ export function SettingsPage() {
         });
         
         // Показываем успех сразу, но проверяем ошибки в фоне
-        passwordReset.then((result) => {
-          if (result.error) {
-            console.error('Password reset error:', result.error);
-            setAccountError(result.error.message || 'Ошибка отправки письма');
-          } else {
-            console.log('Password reset email sent successfully');
-          }
-        }).catch((err) => {
-          console.error('Password reset error:', err);
-          setAccountError('Ошибка отправки письма');
-        });
+                 passwordReset.then((result) => {
+                   if (result.error) {
+                     if (import.meta.env.DEV) {
+                       console.error('Password reset error:', result.error);
+                     }
+                     setAccountError(result.error.message || 'Ошибка отправки письма');
+                   } else {
+                     if (import.meta.env.DEV) {
+                       console.log('Password reset email sent successfully');
+                     }
+                   }
+                 }).catch((err) => {
+                   if (import.meta.env.DEV) {
+                     console.error('Password reset error:', err);
+                   }
+                   setAccountError('Ошибка отправки письма');
+                 });
         
         successMessages.push('Письмо для смены пароля отправлено на вашу почту');
         setNewPassword('');
@@ -618,17 +669,22 @@ export function SettingsPage() {
         }, 5000);
       }
       
-      console.log('[FINAL] Function completed successfully');
-    } catch (err) {
-      console.error('[FINAL ERROR] Account update error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Ошибка обновления данных';
-      setAccountError(errorMessage);
-      console.error('[FINAL ERROR] Error details:', err);
-    } finally {
-      console.log('[FINALLY] Setting savingAccount to false');
-      setSavingAccount(false);
-      console.log('[FINALLY] savingAccount is now false');
-    }
+               if (import.meta.env.DEV) {
+                 console.log('[FINAL] Function completed successfully');
+               }
+             } catch (err) {
+               if (import.meta.env.DEV) {
+                 console.error('[FINAL ERROR] Account update error:', err);
+                 console.error('[FINAL ERROR] Error details:', err);
+               }
+               const errorMessage = err instanceof Error ? err.message : 'Ошибка обновления данных';
+               setAccountError(errorMessage);
+             } finally {
+               if (import.meta.env.DEV) {
+                 console.log('[FINALLY] Setting savingAccount to false');
+               }
+               setSavingAccount(false);
+             }
   };
 
   return (

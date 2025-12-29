@@ -13,7 +13,7 @@ interface FinanceState {
   loadTransactions: () => Promise<void>;
   addTransaction: (transaction: Partial<NewTransaction> & Pick<NewTransaction, 'type' | 'amount' | 'category' | 'categoryName' | 'date'>, userId: string) => Promise<void>;
   updateTransaction: (id: string, transaction: UpdateTransaction, userId: string) => Promise<void>;
-  removeTransaction: (id: string) => Promise<void>;
+  removeTransaction: (id: string, userId: string) => Promise<void>;
   clearAll: () => void;
   setOnline: (isOnline: boolean) => void;
   clearError: () => void;
@@ -34,7 +34,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
-      const transactions = await transactionsService.getAll();
+      // Загружаем только первые 50 транзакций для производительности
+      const transactions = await transactionsService.getAll(50, 0);
       set({ transactions, isLoading: false });
     } catch (error) {
       set({
@@ -110,11 +111,16 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   
-  removeTransaction: async (id) => {
+  removeTransaction: async (id, userId) => {
     set({ error: null });
     
     const previousTransactions = get().transactions;
     const deletedTransaction = previousTransactions.find((t) => t.id === id);
+    
+    // Проверяем, что транзакция существует
+    if (!deletedTransaction) {
+      throw new Error('Транзакция не найдена');
+    }
     
     // Оптимистичное обновление
     set((state) => ({
@@ -125,15 +131,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       await transactionsService.delete(id);
       
       // Логируем действие
-      if (deletedTransaction) {
-        await useActivityLogStore.getState().addLog({
-          type: deletedTransaction.type,
-          action: 'deleted',
-          amount: deletedTransaction.amount,
-          description: deletedTransaction.description,
-          categoryName: deletedTransaction.categoryName,
-        }, userId, deletedTransaction.id);
-      }
+      await useActivityLogStore.getState().addLog({
+        type: deletedTransaction.type,
+        action: 'deleted',
+        amount: deletedTransaction.amount,
+        description: deletedTransaction.description,
+        categoryName: deletedTransaction.categoryName,
+      }, userId, deletedTransaction.id);
     } catch (error) {
       // Откатываем при ошибке
       set({ transactions: previousTransactions });
@@ -155,9 +159,16 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   
   // Optimistic updates для realtime
   addTransactionOptimistic: (transaction) => {
-    set((state) => ({
-      transactions: [transaction, ...state.transactions],
-    }));
+    set((state) => {
+      // Проверка на дубликаты (защита от race condition)
+      const exists = state.transactions.some((t) => t.id === transaction.id);
+      if (exists) {
+        return state; // Не добавляем дубликат
+      }
+      return {
+        transactions: [transaction, ...state.transactions],
+      };
+    });
   },
   
   updateTransactionOptimistic: (id, transaction) => {
@@ -169,9 +180,16 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   },
   
   removeTransactionOptimistic: (id) => {
-    set((state) => ({
-      transactions: state.transactions.filter((t) => t.id !== id),
-    }));
+    set((state) => {
+      // Проверка на существование (защита от race condition)
+      const exists = state.transactions.some((t) => t.id === id);
+      if (!exists) {
+        return state; // Уже удалено, не делаем ничего
+      }
+      return {
+        transactions: state.transactions.filter((t) => t.id !== id),
+      };
+    });
   },
 }));
 

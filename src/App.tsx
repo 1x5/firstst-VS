@@ -121,6 +121,7 @@ function AppLayout() {
             <Route path="/income" element={<IncomePage />} />
             <Route path="/expense" element={<ExpensePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/auth/reset-password" element={<AuthPage />} />
           </Routes>
         </div>
       </main>

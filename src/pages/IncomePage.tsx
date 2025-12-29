@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Filter, PieChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import { useCategoriesStore } from '@/stores/categories';
 import { useAuthStore } from '@/stores/auth';
 import { ActivityLog } from '@/components/ActivityLog';
 import type { Transaction } from '@/types/transaction';
+import { validateAndSanitizeAmount, sanitizeDescription, sanitizeCategoryName } from '@/lib/sanitize';
 
 export function IncomePage() {
   const [open, setOpen] = useState(false);
@@ -37,7 +38,10 @@ export function IncomePage() {
   const [category, setCategory] = useState('');
   const [categorySearch, setCategorySearch] = useState('');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [debouncedCategorySearch, setDebouncedCategorySearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -48,17 +52,36 @@ export function IncomePage() {
   const addTransaction = useFinanceStore((state) => state.addTransaction);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
   const removeTransaction = useFinanceStore((state) => state.removeTransaction);
+
+  // Debounce для поиска категорий
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCategorySearch(categorySearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [categorySearch]);
   
   const allCategories = useCategoriesStore((state) => state.categories) || [];
-  const categories = allCategories.filter((c) => c.type === 'income');
+  
+  // Мемоизация категорий дохода
+  const categories = useMemo(
+    () => allCategories.filter((c) => c.type === 'income'),
+    [allCategories]
+  );
+  
   const addCategory = useCategoriesStore((state) => state.addCategory);
 
-  const incomeTransactions = transactions.filter((t) => t.type === 'income');
+  // Мемоизация транзакций дохода
+  const incomeTransactions = useMemo(
+    () => transactions.filter((t) => t.type === 'income'),
+    [transactions]
+  );
 
-  const getCategoryName = (categoryId: string) => {
+  // Мемоизация функции getCategoryName
+  const getCategoryName = useCallback((categoryId: string) => {
     const cat = allCategories.find((c) => c.id === categoryId);
     return cat?.name || categoryId || 'Другое';
-  };
+  }, [allCategories]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('ru-RU', {
@@ -75,7 +98,7 @@ export function IncomePage() {
     setCategory('');
     setCategorySearch('');
     setShowCategoryDropdown(false);
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(new Date().toLocaleDateString('en-CA'));
     setError('');
     setEditingTransaction(null);
   };
@@ -97,14 +120,20 @@ export function IncomePage() {
     e.preventDefault();
     setError('');
     
+    // Защита от двойного нажатия
+    if (isSubmitting) {
+      return;
+    }
+
     if (!user) {
       setError('Необходима авторизация');
       return;
     }
 
-    const amountNum = parseFloat(amount.replace(',', '.'));
-    if (!amount || amountNum <= 0) {
-      setError('Введите сумму');
+    // Валидация и санитизация суммы
+    const amountNum = validateAndSanitizeAmount(amount);
+    if (!amount || amountNum === null) {
+      setError('Введите корректную сумму');
       return;
     }
 
@@ -112,13 +141,35 @@ export function IncomePage() {
     let categoryId = category;
     let categoryName = getCategoryName(category);
     
+    // Если категория не выбрана, но есть поиск - создаем категорию
     if (!category && categorySearch.trim()) {
-      categoryId = `new-${Date.now()}`;
-      categoryName = categorySearch.trim();
+      try {
+        const newCategoryName = sanitizeCategoryName(categorySearch.trim());
+        const newCategory = await addCategory({ name: newCategoryName, type: 'income' }, user.id);
+        categoryId = newCategory.id;
+        categoryName = newCategory.name;
+      } catch (err) {
+        setError('Не удалось создать категорию');
+        if (import.meta.env.DEV) {
+          console.error('Ошибка создания категории:', err);
+        }
+        return;
+      }
     } else if (!category) {
       setError('Выберите категорию');
       return;
+    } else {
+      categoryName = sanitizeCategoryName(categoryName);
     }
+
+    // Валидация даты (не будущее) - сравниваем строки дат в локальном времени
+    const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD в локальном времени
+    if (date > todayStr) {
+      setError('Дата не может быть в будущем');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       if (editingTransaction) {
@@ -126,7 +177,7 @@ export function IncomePage() {
           amount: amountNum,
           category: categoryId,
           categoryName,
-          description: description.trim(),
+          description: sanitizeDescription(description),
           date,
         }, user.id);
       } else {
@@ -135,7 +186,7 @@ export function IncomePage() {
           amount: amountNum,
           category: categoryId,
           categoryName,
-          description: description.trim(),
+          description: sanitizeDescription(description),
           date,
         }, user.id);
       }
@@ -144,39 +195,56 @@ export function IncomePage() {
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+    } finally {
+      // Debounce для защиты от спама
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
+      submitTimeoutRef.current = setTimeout(() => {
+        setIsSubmitting(false);
+      }, 300);
     }
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || !user) return;
     
     try {
-      await removeTransaction(deleteId);
+      await removeTransaction(deleteId, user.id);
       setDeleteId(null);
       setEditingTransaction(null);
       setOpen(false);
       resetForm();
     } catch (err) {
-      console.error('Ошибка удаления:', err);
+      if (import.meta.env.DEV) {
+        console.error('Ошибка удаления:', err);
+      }
+      setError(err instanceof Error ? err.message : 'Ошибка удаления');
     }
   };
 
-  // Группировка по категориям
-  const statsByCategory = incomeTransactions.reduce((acc, t) => {
-    const catName = getCategoryName(t.category);
-    if (!acc[catName]) {
-      acc[catName] = { amount: 0, categoryId: t.category };
-    }
-    acc[catName].amount += t.amount;
-    return acc;
-  }, {} as Record<string, { amount: number; categoryId: string }>);
+  // Мемоизация группировки по категориям
+  const statsByCategory = useMemo(() => {
+    return incomeTransactions.reduce((acc, t) => {
+      const catName = getCategoryName(t.category);
+      if (!acc[catName]) {
+        acc[catName] = { amount: 0, categoryId: t.category };
+      }
+      acc[catName].amount += t.amount;
+      return acc;
+    }, {} as Record<string, { amount: number; categoryId: string }>);
+  }, [incomeTransactions, getCategoryName]);
 
-  const sortedStats = Object.entries(statsByCategory)
-    .map(([name, data]) => ({ name, amount: data.amount, categoryId: data.categoryId }))
-    .sort((a, b) => b.amount - a.amount);
+  // Мемоизация отсортированной статистики
+  const sortedStats = useMemo(() => {
+    return Object.entries(statsByCategory)
+      .map(([name, data]) => ({ name, amount: data.amount, categoryId: data.categoryId }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [statsByCategory]);
 
-  // Фильтрация по периоду
-  const getDateRange = (period: string) => {
+
+  // Мемоизация функции getDateRange
+  const getDateRange = useCallback((period: string) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
@@ -198,26 +266,34 @@ export function IncomePage() {
       default:
         return null;
     }
-  };
+  }, []);
 
-  // Фильтрация транзакций по категории и периоду
-  const filteredTransactions = incomeTransactions.filter((t) => {
-    // Фильтр по категории
-    if (activeFilter !== 'all' && getCategoryName(t.category) !== activeFilter) {
-      return false;
-    }
-    // Фильтр по периоду
-    if (periodFilter !== 'all') {
-      const range = getDateRange(periodFilter);
-      if (range) {
-        const txDate = new Date(t.date);
-        if (txDate < range.start || txDate > range.end) {
-          return false;
+  // Мемоизация фильтрованных транзакций
+  const filteredTransactions = useMemo(() => {
+    return incomeTransactions.filter((t) => {
+      // Фильтр по категории
+      if (activeFilter !== 'all' && getCategoryName(t.category) !== activeFilter) {
+        return false;
+      }
+      // Фильтр по периоду
+      if (periodFilter !== 'all') {
+        const range = getDateRange(periodFilter);
+        if (range) {
+          const txDate = new Date(t.date);
+          if (txDate < range.start || txDate > range.end) {
+            return false;
+          }
         }
       }
-    }
-    return true;
-  });
+      return true;
+    });
+  }, [incomeTransactions, activeFilter, periodFilter, getCategoryName, getDateRange]);
+
+  // Мемоизация отфильтрованных категорий для поиска
+  const filteredCategoriesForSearch = useMemo(() => 
+    categories.filter(c => c.name.toLowerCase().includes(debouncedCategorySearch.toLowerCase())),
+    [categories, debouncedCategorySearch]
+  );
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] flex-1 flex-col space-y-4 sm:space-y-6">
@@ -386,7 +462,13 @@ export function IncomePage() {
                   type="text"
                   placeholder="Описание"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value.length <= 500) {
+                      setDescription(value);
+                    }
+                  }}
+                  maxLength={500}
                   className="h-10 w-1/2 text-sm"
                 />
               </div>
@@ -397,11 +479,15 @@ export function IncomePage() {
                       placeholder="Категория"
                       value={categorySearch}
                       onChange={(e) => {
-                        setCategorySearch(e.target.value);
-                        setCategory('');
-                        setShowCategoryDropdown(true);
+                        const value = e.target.value;
+                        if (value.length <= 50) {
+                          setCategorySearch(value);
+                          setCategory('');
+                          setShowCategoryDropdown(true);
+                        }
                       }}
                       onFocus={() => setShowCategoryDropdown(true)}
+                      maxLength={50}
                       className="h-10 w-full text-sm"
                     />
                     {categorySearch.trim() && !categories.some(c => c.name.toLowerCase() === categorySearch.toLowerCase()) && (
@@ -420,7 +506,9 @@ export function IncomePage() {
                               setCategorySearch(newCatName);
                               setShowCategoryDropdown(false);
                             } catch (e) {
-                              console.error('Ошибка добавления категории:', e);
+                              if (import.meta.env.DEV) {
+                                console.error('Ошибка добавления категории:', e);
+                              }
                               setError('Не удалось добавить категорию');
                             }
                           }
@@ -432,9 +520,7 @@ export function IncomePage() {
                   </div>
                   {showCategoryDropdown && (
                     <div className="absolute top-full z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md">
-                      {categories
-                        .filter(c => c.name.toLowerCase().includes(categorySearch.toLowerCase()))
-                        .map((cat) => (
+                      {filteredCategoriesForSearch.map((cat) => (
                           <button
                             key={cat.id}
                             type="button"
@@ -451,9 +537,9 @@ export function IncomePage() {
                             {cat.name}
                           </button>
                         ))}
-                      {categories.filter(c => c.name.toLowerCase().includes(categorySearch.toLowerCase())).length === 0 && (
+                      {filteredCategoriesForSearch.length === 0 && (
                         <p className="px-2 py-1 text-xs text-muted-foreground">
-                          {categorySearch ? 'Нажмите +' : 'Нет категорий'}
+                          {debouncedCategorySearch ? 'Нажмите +' : 'Нет категорий'}
                         </p>
                       )}
                     </div>
@@ -463,6 +549,7 @@ export function IncomePage() {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
+                  max={new Date().toLocaleDateString('en-CA')}
                   className="h-10 w-1/2 rounded-md border border-input bg-background px-3 text-sm focus:outline-none"
                   required
                 />
@@ -586,7 +673,13 @@ export function IncomePage() {
                 type="text"
                 placeholder="Описание"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.length <= 500) {
+                    setDescription(value);
+                  }
+                }}
+                maxLength={500}
                 className="h-10 w-1/2 text-sm"
               />
             </div>
@@ -601,6 +694,7 @@ export function IncomePage() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
+                max={new Date().toLocaleDateString('en-CA')}
                 className="h-10 w-1/2 rounded-md border border-input bg-background px-3 text-sm focus:outline-none"
                 required
               />

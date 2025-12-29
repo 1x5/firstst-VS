@@ -2,6 +2,8 @@ import { supabase } from '@/lib/supabase';
 import type { Transaction, NewTransaction, UpdateTransaction } from '@/types/transaction';
 import type { Database } from '@/types/supabase';
 import { useFinanceStore } from '@/stores/finance';
+import { sanitizeDescription, sanitizeCategoryName } from '@/lib/sanitize';
+import { withTimeout } from '@/lib/api-timeout';
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row'];
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert'];
@@ -26,12 +28,12 @@ const fromDb = (row: TransactionRow): Transaction => ({
 // Преобразование в формат БД
 const toDb = (transaction: NewTransaction | UpdateTransaction, userId: string): TransactionInsert => ({
   user_id: userId,
-  type: transaction.type as 'income' | 'expense',
-  amount: transaction.amount,
-  category: transaction.category,
-  category_name: transaction.categoryName,
-  description: transaction.description || '',
-  date: transaction.date,
+  type: (transaction.type as 'income' | 'expense') || 'expense',
+  amount: transaction.amount || 0,
+  category: transaction.category || '',
+  category_name: sanitizeCategoryName(transaction.categoryName || 'Другое'),
+  description: sanitizeDescription(transaction.description || ''),
+  date: transaction.date || new Date().toISOString().split('T')[0],
   is_recurring: transaction.isRecurring || false,
   recurring_interval: transaction.recurringInterval || null,
   currency: transaction.currency || 'RUB',
@@ -46,16 +48,27 @@ export const transactionsService = {
       .order('date', { ascending: false })
       .order('created_at', { ascending: false });
 
+    // По умолчанию загружаем 50 записей для производительности
     if (limit !== undefined && offset !== undefined) {
       query = query.range(offset, offset + limit - 1);
+    } else if (limit === undefined) {
+      // Если limit не указан, используем дефолтное значение 50
+      query = query.limit(50);
     }
 
-    const { data, error } = await query;
+    const queryPromise = query as unknown as Promise<{ data: TransactionRow[] | null; error: any }>;
+    const { data, error } = await withTimeout(
+      queryPromise,
+      10000,
+      'Таймаут загрузки транзакций'
+    );
 
     // Если таблица не существует (42P01), возвращаем пустой массив
     if (error) {
       if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        console.warn('Таблица transactions не существует. Работаем в локальном режиме.');
+        if (import.meta.env.DEV) {
+          console.warn('Таблица transactions не существует. Работаем в локальном режиме.');
+        }
         return [];
       }
       throw error;
@@ -73,14 +86,25 @@ export const transactionsService = {
     return count || 0;
   },
 
-  // Получить транзакции за период
-  async getByDateRange(startDate: string, endDate: string): Promise<Transaction[]> {
-    const { data, error } = await supabase
+  // Получить транзакции за период с пагинацией
+  async getByDateRange(startDate: string, endDate: string, limit: number = 50, offset: number = 0): Promise<Transaction[]> {
+    let query = supabase
       .from('transactions')
       .select('*')
       .gte('date', startDate)
       .lte('date', endDate)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    // Применяем пагинацию
+    query = query.range(offset, offset + limit - 1);
+
+    const queryPromise = query as unknown as Promise<{ data: TransactionRow[] | null; error: any }>;
+    const { data, error } = await withTimeout(
+      queryPromise,
+      10000,
+      'Таймаут загрузки транзакций за период'
+    );
 
     if (error) throw error;
     return (data || []).map(fromDb);
@@ -102,8 +126,10 @@ export const transactionsService = {
       .single();
 
     if (error) {
-      console.error('Ошибка создания транзакции:', error);
-      console.error('Данные для вставки:', dbData);
+      if (import.meta.env.DEV) {
+        console.error('Ошибка создания транзакции:', error);
+        console.error('Данные для вставки:', dbData);
+      }
       throw error;
     }
     return fromDb(data);
@@ -111,35 +137,48 @@ export const transactionsService = {
 
   // Обновить транзакцию
   async update(id: string, transaction: UpdateTransaction, _userId: string): Promise<Transaction> {
-    const updateData: Partial<TransactionUpdate> = {};
+    const updateData: Record<string, any> = {};
 
     if (transaction.type !== undefined) updateData.type = transaction.type as 'income' | 'expense';
     if (transaction.amount !== undefined) updateData.amount = transaction.amount;
     if (transaction.category !== undefined) updateData.category = transaction.category;
-    if (transaction.categoryName !== undefined) updateData.category_name = transaction.categoryName;
-    if (transaction.description !== undefined) updateData.description = transaction.description;
+    if (transaction.categoryName !== undefined) updateData.category_name = sanitizeCategoryName(transaction.categoryName);
+    if (transaction.description !== undefined) updateData.description = sanitizeDescription(transaction.description);
     if (transaction.date !== undefined) updateData.date = transaction.date;
     if (transaction.isRecurring !== undefined) updateData.is_recurring = transaction.isRecurring;
     if (transaction.recurringInterval !== undefined) updateData.recurring_interval = transaction.recurringInterval;
     if (transaction.currency !== undefined) updateData.currency = transaction.currency;
 
-    const { data, error } = await supabase
+    const updatePromise = supabase
       .from('transactions')
       .update(updateData as any)
       .eq('id', id)
       .select()
-      .single();
+      .single() as unknown as Promise<{ data: TransactionRow | null; error: any }>;
+    
+    const { data, error } = await withTimeout(
+      updatePromise,
+      10000,
+      'Таймаут обновления транзакции'
+    );
 
     if (error) throw error;
+    if (!data) throw new Error('Транзакция не найдена');
     return fromDb(data);
   },
 
   // Удалить транзакцию
   async delete(id: string): Promise<void> {
-    const { error } = await supabase
+    const deletePromise = supabase
       .from('transactions')
       .delete()
-      .eq('id', id);
+      .eq('id', id) as unknown as Promise<{ error: any }>;
+    
+    const { error } = await withTimeout(
+      deletePromise,
+      10000,
+      'Таймаут удаления транзакции'
+    );
 
     if (error) throw error;
   },

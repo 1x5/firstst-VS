@@ -22,7 +22,7 @@ interface CategoriesState {
   
   // Actions
   loadCategories: (userId: string) => Promise<void>;
-  addCategory: (category: Omit<CustomCategory, 'id'>, userId: string) => Promise<void>;
+  addCategory: (category: Omit<CustomCategory, 'id'>, userId: string) => Promise<CustomCategory>;
   updateCategory: (id: string, name: string) => Promise<void>;
   removeCategory: (id: string) => Promise<void>;
   clearAll: () => void;
@@ -51,7 +51,9 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
       });
     } catch (error) {
       // При ошибке используем локальные дефолтные (без сообщения об ошибке)
-      console.warn('Используем локальные категории:', error);
+      if (import.meta.env.DEV) {
+        console.warn('Используем локальные категории:', error);
+      }
       set({
         categories: DEFAULT_CATEGORIES,
         isLoading: false,
@@ -64,13 +66,15 @@ export const useCategoriesStore = create<CategoriesState>((set, get) => ({
     
     try {
       const created = await categoriesService.create(category, userId);
+      const newCategory = {
+        id: created.id,
+        name: created.name,
+        type: created.type,
+      };
       set((state) => ({
-        categories: [...state.categories, {
-          id: created.id,
-          name: created.name,
-          type: created.type,
-        }],
+        categories: [...state.categories, newCategory],
       }));
+      return newCategory;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Ошибка добавления категории';
       set({ error: message });

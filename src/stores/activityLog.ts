@@ -52,7 +52,9 @@ export const useActivityLogStore = create<ActivityLogState>()(
           }));
         } catch (error) {
           // Если ошибка, лог остается в локальном хранилище
-          console.warn('Не удалось сохранить лог в Supabase:', error);
+          if (import.meta.env.DEV) {
+            console.warn('Не удалось сохранить лог в Supabase:', error);
+          }
         }
       },
       
@@ -62,7 +64,9 @@ export const useActivityLogStore = create<ActivityLogState>()(
           const logs = await activityLogsService.getAll(50);
           set({ logs, isLoading: false });
         } catch (error) {
-          console.warn('Не удалось загрузить логи из Supabase:', error);
+          if (import.meta.env.DEV) {
+            console.warn('Не удалось загрузить логи из Supabase:', error);
+          }
           set({ isLoading: false });
         }
       },
@@ -75,7 +79,9 @@ export const useActivityLogStore = create<ActivityLogState>()(
         try {
           await activityLogsService.deleteAll(userId);
         } catch (error) {
-          console.warn('Не удалось очистить логи в Supabase:', error);
+          if (import.meta.env.DEV) {
+            console.warn('Не удалось очистить логи в Supabase:', error);
+          }
         }
       },
       

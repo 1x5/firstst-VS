@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import type { TransactionType } from '@/types/transaction';
 import type { Database } from '@/types/supabase';
+import { sanitizeCategoryName } from '@/lib/sanitize';
+import { withTimeout } from '@/lib/api-timeout';
 
 type CategoryRow = Database['public']['Tables']['categories']['Row'];
 type CategoryInsert = Database['public']['Tables']['categories']['Insert'];
@@ -49,16 +51,24 @@ const fromDb = (row: CategoryRow): Category => ({
 export const categoriesService = {
   // Получить все категории пользователя
   async getAll(): Promise<Category[]> {
-    const { data, error } = await supabase
+    const queryPromise = supabase
       .from('categories')
       .select('*')
       .order('type')
-      .order('name');
+      .order('name') as unknown as Promise<{ data: CategoryRow[] | null; error: any }>;
+    
+    const { data, error } = await withTimeout(
+      queryPromise,
+      10000,
+      'Таймаут загрузки категорий'
+    );
 
     // Если таблица не существует (404), возвращаем пустой массив
     if (error) {
       if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        console.warn('Таблица categories не существует. Используем локальные категории.');
+        if (import.meta.env.DEV) {
+          console.warn('Таблица categories не существует. Используем локальные категории.');
+        }
         return [];
       }
       throw error;
@@ -70,7 +80,7 @@ export const categoriesService = {
   async create(category: NewCategory, userId: string): Promise<Category> {
     const insertData: CategoryInsert = {
       user_id: userId,
-      name: category.name,
+      name: sanitizeCategoryName(category.name),
       type: category.type,
     };
     
@@ -88,7 +98,7 @@ export const categoriesService = {
   async createMany(categories: NewCategory[], userId: string): Promise<Category[]> {
     const insertData: CategoryInsert[] = categories.map((cat) => ({
       user_id: userId,
-      name: cat.name,
+      name: sanitizeCategoryName(cat.name),
       type: cat.type,
     }));
     
@@ -103,14 +113,16 @@ export const categoriesService = {
 
   // Обновить категорию
   async update(id: string, name: string): Promise<Category> {
-    const { data, error } = await supabase
-      .from('categories')
-      .update({ name } as any)
+    // Используем двойное приведение типа для обхода строгой типизации Supabase
+    const updateData = { name: sanitizeCategoryName(name) };
+    const query = (supabase.from('categories') as any).update(updateData);
+    const { data, error } = await (query
       .eq('id', id)
       .select()
-      .single();
+      .single() as unknown as Promise<{ data: CategoryRow | null; error: any }>);
 
     if (error) throw error;
+    if (!data) throw new Error('Категория не найдена');
     return fromDb(data);
   },
 
@@ -137,7 +149,9 @@ export const categoriesService = {
       return await this.createMany(DEFAULT_CATEGORIES, userId);
     } catch (error) {
       // При любой ошибке возвращаем дефолтные категории локально
-      console.warn('Не удалось загрузить категории из Supabase:', error);
+      if (import.meta.env.DEV) {
+        console.warn('Не удалось загрузить категории из Supabase:', error);
+      }
       return DEFAULT_CATEGORIES.map((cat, index) => ({
         ...cat,
         id: `local-${cat.type}-${index}`,

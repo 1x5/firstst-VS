@@ -8,10 +8,17 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 минут
+      gcTime: 1000 * 60 * 10, // 10 минут (было cacheTime)
       retry: 1,
+      refetchOnWindowFocus: false, // Не перезагружать при фокусе окна
     },
   },
 })
+
+// Сохраняем queryClient глобально для доступа из stores (для оптимизации)
+if (typeof window !== 'undefined') {
+  (window as any).__REACT_QUERY_CLIENT__ = queryClient;
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -29,22 +29,21 @@ const toDb = (log: Omit<ActivityLog, 'id' | 'timestamp'>, userId: string, transa
 
 export const activityLogsService = {
   // Получить все логи пользователя
-  async getAll(limit?: number): Promise<ActivityLog[]> {
-    let query = supabase
+  async getAll(limit: number = 100): Promise<ActivityLog[]> {
+    const query = supabase
       .from('activity_logs')
       .select('*')
-      .order('created_at', { ascending: false });
-
-    if (limit) {
-      query = query.limit(limit);
-    }
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
     const { data, error } = await query;
 
     if (error) {
       // Если таблица не существует, возвращаем пустой массив
       if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        console.warn('Таблица activity_logs не существует. Работаем в локальном режиме.');
+        if (import.meta.env.DEV) {
+          console.warn('Таблица activity_logs не существует. Работаем в локальном режиме.');
+        }
         return [];
       }
       throw error;
@@ -65,7 +64,9 @@ export const activityLogsService = {
     if (error) {
       // Если таблица не существует, просто логируем ошибку
       if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        console.warn('Таблица activity_logs не существует. Лог не сохранен в Supabase.');
+        if (import.meta.env.DEV) {
+          console.warn('Таблица activity_logs не существует. Лог не сохранен в Supabase.');
+        }
         // Возвращаем локальный лог
         return {
           ...log,
@@ -88,7 +89,9 @@ export const activityLogsService = {
     if (error) {
       // Если таблица не существует, просто игнорируем
       if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        console.warn('Таблица activity_logs не существует.');
+        if (import.meta.env.DEV) {
+          console.warn('Таблица activity_logs не существует.');
+        }
         return;
       }
       throw error;
