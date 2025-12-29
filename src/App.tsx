@@ -175,7 +175,8 @@ function AuthenticatedApp() {
         hasRedirectPath: !!redirectPath,
         hasSavedHash: !!savedHash,
         redirectPath: redirectPath?.substring(0, 100),
-        savedHash: savedHash?.substring(0, 50)
+        savedHash: savedHash?.substring(0, 50),
+        currentPath: location.pathname
       });
     }
     
@@ -200,10 +201,12 @@ function AuthenticatedApp() {
       navigate(path, { replace: true });
       
       if (import.meta.env.DEV) {
-        console.log('[App] Navigated to:', path, 'hash will be processed separately');
+        console.log('[App] Navigated to:', path);
+        console.log('[App] Hash will be processed in AuthPage from sessionStorage');
+        console.log('[App] Current hash in sessionStorage:', sessionStorage.getItem('_reset_password_hash') ? 'exists' : 'missing');
       }
     }
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   useEffect(() => {
     if (isDark) {

@@ -236,6 +236,8 @@ export function AuthPage() {
       if (import.meta.env.DEV) {
         console.log('[reset-password] On reset-password page, handling callback...');
         console.log('[reset-password] Current mode:', mode);
+        console.log('[reset-password] Location hash:', location.hash ? location.hash.substring(0, 50) + '...' : 'empty');
+        console.log('[reset-password] SessionStorage hash:', sessionStorage.getItem('_reset_password_hash') ? sessionStorage.getItem('_reset_password_hash')!.substring(0, 50) + '...' : 'empty');
       }
       handleResetPasswordCallback();
     } else {
