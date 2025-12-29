@@ -222,10 +222,15 @@ export function AuthPage() {
     if (location.pathname.includes('/auth/reset-password')) {
       if (import.meta.env.DEV) {
         console.log('[reset-password] On reset-password page, handling callback...');
+        console.log('[reset-password] Current mode:', mode);
       }
       handleResetPasswordCallback();
+    } else {
+      if (import.meta.env.DEV) {
+        console.log('[reset-password] Not on reset-password page, pathname:', location.pathname);
+      }
     }
-  }, [location, mode]);
+  }, [location.pathname, location.hash, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
