@@ -309,61 +309,29 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.log('[signOut] ===== STARTING SIGN OUT =====');
     }
     
-    try {
-      // Сначала очищаем локальные данные
-      clearUserData();
-      
-      // Пытаемся выйти из Supabase
-      // Используем scope: 'local' чтобы избежать 403 ошибки
-      // Это выйдет только из текущей сессии, не из всех устройств
-      const { error } = await supabase.auth.signOut({ scope: 'local' });
-      
-      if (error) {
-        if (import.meta.env.DEV) {
-          console.error('[signOut] Supabase signOut error:', error);
-          console.error('[signOut] Error details:', {
-            message: error.message,
-            status: error.status,
-            code: error.code
-          });
-        }
-        
-        // Если ошибка 403, просто очищаем локальное состояние
-        // Это может произойти если сессия уже истекла или недействительна
-        if (error.status === 403 || error.message.includes('403')) {
-          if (import.meta.env.DEV) {
-            console.warn('[signOut] Got 403 error, clearing local state anyway');
-          }
-        } else {
-          // Для других ошибок пробрасываем исключение
-          throw error;
-        }
-      }
-
-      // Очищаем состояние независимо от результата Supabase
-      set({
-        user: null,
-        session: null,
-        isLoading: false,
-      });
-      
+    // Сначала очищаем локальные данные
+    clearUserData();
+    
+    // Очищаем состояние сразу, не дожидаясь ответа от Supabase
+    // Это обеспечит мгновенный выход даже если запрос к Supabase завершится ошибкой
+    set({
+      user: null,
+      session: null,
+      isLoading: false,
+    });
+    
+    // Пытаемся выйти из Supabase в фоне (не блокируем UI)
+    // Игнорируем все ошибки, так как локальное состояние уже очищено
+    supabase.auth.signOut({ scope: 'local' }).catch((error) => {
       if (import.meta.env.DEV) {
-        console.log('[signOut] ===== SIGN OUT SUCCESS =====');
+        console.warn('[signOut] Supabase signOut error (ignored):', error);
+        console.warn('[signOut] Local state already cleared, user is logged out');
       }
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('[signOut] ===== SIGN OUT ERROR =====');
-        console.error('[signOut] Error:', error);
-      }
-      
-      // Даже при ошибке очищаем локальное состояние
-      clearUserData();
-      set({
-        user: null,
-        session: null,
-        isLoading: false,
-        error: error instanceof Error ? translateError(error.message) : 'Ошибка выхода',
-      });
+      // Игнорируем ошибку - локальное состояние уже очищено
+    });
+    
+    if (import.meta.env.DEV) {
+      console.log('[signOut] ===== SIGN OUT SUCCESS (local state cleared) =====');
     }
   },
 
