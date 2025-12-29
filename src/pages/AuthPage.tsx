@@ -19,7 +19,13 @@ export function AuthPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState('');
   const [resetSent, setResetSent] = useState(false);
-  const [passwordUpdated, setPasswordUpdated] = useState(false);
+  const [passwordUpdated, setPasswordUpdated] = useState(() => {
+    // Восстанавливаем состояние из sessionStorage
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('passwordUpdated') === 'true';
+    }
+    return false;
+  });
 
   const { signIn, signUp, resetPassword, updatePassword, isLoading, error, clearError, user } = useAuthStore();
   
@@ -72,7 +78,8 @@ export function AuthPage() {
               console.error('[reset-password] Error in URL:', error, errorDescription);
             }
             setLocalError(translateError(errorDescription || error) || 'Ошибка обработки ссылки');
-            navigate('/auth/reset-password', { replace: true });
+            const newUrl = window.location.pathname + window.location.search;
+            window.history.replaceState(null, '', newUrl);
             return;
           }
           
@@ -92,7 +99,8 @@ export function AuthPage() {
                 console.error('[reset-password] Session error:', sessionError);
               }
               setLocalError(translateError(sessionError.message) || 'Ссылка недействительна или истекла');
-              navigate('/auth/reset-password', { replace: true });
+              const newUrl = window.location.pathname + window.location.search;
+              window.history.replaceState(null, '', newUrl);
               return;
             }
 
@@ -111,20 +119,24 @@ export function AuthPage() {
               if (import.meta.env.DEV) {
                 console.log('[reset-password] Mode set to "reset"');
                 console.log('[reset-password] Current user after setSession:', sessionData.session.user.id);
+                console.log('[reset-password] Session type:', sessionData.session.user.app_metadata?.provider);
               }
-              // Очищаем hash из URL ПОСЛЕ установки режима
-              // Используем navigate для правильной обработки роутинга
-              navigate('/auth/reset-password', { replace: true });
+              // Очищаем hash из URL БЕЗ перезагрузки страницы
+              // Используем replaceState вместо navigate, чтобы избежать 404
+              const newUrl = window.location.pathname + window.location.search;
+              window.history.replaceState(null, '', newUrl);
               
               if (import.meta.env.DEV) {
                 console.log('[reset-password] ===== CALLBACK HANDLING SUCCESS =====');
+                console.log('[reset-password] URL cleaned, ready for password reset form');
               }
             } else {
               if (import.meta.env.DEV) {
                 console.error('[reset-password] Session data is missing!');
               }
               setLocalError('Не удалось установить сессию');
-              navigate('/auth/reset-password', { replace: true });
+              const newUrl = window.location.pathname + window.location.search;
+              window.history.replaceState(null, '', newUrl);
             }
           } else {
             if (import.meta.env.DEV) {
@@ -140,7 +152,8 @@ export function AuthPage() {
             console.error('[reset-password] Exception handling callback:', err);
           }
           setLocalError('Ошибка обработки ссылки');
-          navigate('/auth/reset-password', { replace: true });
+          const newUrl = window.location.pathname + window.location.search;
+          window.history.replaceState(null, '', newUrl);
         }
       } else {
         if (import.meta.env.DEV) {
@@ -249,6 +262,10 @@ export function AuthPage() {
           console.log('[reset-password] Password updated successfully, showing success screen');
         }
         setPasswordUpdated(true);
+        // Сохраняем состояние в sessionStorage
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('passwordUpdated', 'true');
+        }
       } else {
         if (import.meta.env.DEV) {
           console.error('[reset-password] Password update failed');
@@ -289,6 +306,10 @@ export function AuthPage() {
                 await useAuthStore.getState().signOut();
                 setMode('login');
                 setPasswordUpdated(false);
+                // Очищаем sessionStorage
+                if (typeof window !== 'undefined') {
+                  sessionStorage.removeItem('passwordUpdated');
+                }
                 navigate('/');
               }}
               className="w-full"

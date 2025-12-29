@@ -428,8 +428,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       if (import.meta.env.DEV) {
         console.log('[updatePassword] Calling supabase.auth.updateUser...');
+        console.log('[updatePassword] Session type check:', {
+          isRecovery: sessionData.session?.user?.app_metadata?.provider === 'email',
+          hasRecoveryToken: !!sessionData.session?.access_token
+        });
       }
       
+      // Для recovery сессии используем updateUser напрямую
+      // НЕ используем signIn с grant_type=password
       const { data, error } = await supabase.auth.updateUser({
         password: newPassword,
       });
