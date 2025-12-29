@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { sanitizeCategoryName, sanitizeDescription } from '@/lib/sanitize';
-import { User, FileText, Download, Upload, Eye, EyeOff, Save, RefreshCw, Palette, Trash2 } from 'lucide-react';
+import { User, FileText, Download, Upload, Save, RefreshCw, Palette, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,9 +29,6 @@ export function SettingsPage() {
 
   // Account state
   const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPasswords, setShowPasswords] = useState(false);
   const [accountMessage, setAccountMessage] = useState('');
   const [accountError, setAccountError] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
@@ -517,33 +514,12 @@ export function SettingsPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Валидация пароля
-  const validatePassword = (password: string): string | null => {
-    if (password.length < 8) {
-      return 'Пароль должен содержать минимум 8 символов';
-    }
-    if (!/[a-z]/.test(password) && !/[а-я]/.test(password)) {
-      return 'Пароль должен содержать хотя бы одну строчную букву';
-    }
-    if (!/[A-Z]/.test(password) && !/[А-Я]/.test(password)) {
-      return 'Пароль должен содержать хотя бы одну заглавную букву';
-    }
-    if (!/\d/.test(password)) {
-      return 'Пароль должен содержать хотя бы одну цифру';
-    }
-    // Проверка на простые пароли
-    const commonPasswords = ['password', '12345678', 'qwerty', 'admin', 'пароль', '123456'];
-    if (commonPasswords.some(common => password.toLowerCase().includes(common))) {
-      return 'Пароль слишком простой. Используйте более сложный пароль';
-    }
-    return null;
-  };
 
   // Update account
   const handleUpdateAccount = async () => {
-    // Проверяем, что хотя бы одно поле заполнено
-    if (!newEmail.trim() && !newPassword.trim()) {
-      setAccountError('Заполните хотя бы одно поле');
+    // Проверяем, что email заполнен
+    if (!newEmail.trim()) {
+      setAccountError('Введите новый email');
       return;
     }
 
@@ -596,49 +572,6 @@ export function SettingsPage() {
       } else if (trimmedEmail && trimmedEmail === user?.email) {
         // Если введен текущий email, просто очищаем поле без отправки
         setNewEmail('');
-      }
-      
-      // Обновление пароля
-      if (newPassword.trim()) {
-        if (newPassword !== confirmPassword) {
-          throw new Error('Пароли не совпадают');
-        }
-        
-        const passwordError = validatePassword(newPassword);
-        if (passwordError) {
-          throw new Error(passwordError);
-        }
-        
-        if (!user?.email) {
-          throw new Error('Email пользователя не найден');
-        }
-        
-        const redirectUrl = 'https://uchet1.ru/auth/reset-password';
-        const passwordReset = supabase.auth.resetPasswordForEmail(user.email, {
-          redirectTo: redirectUrl,
-        });
-        
-        passwordReset.then((result) => {
-          if (result.error) {
-            setAccountError(translateError(result.error.message) || 'Ошибка отправки письма');
-          } else {
-            if (import.meta.env.DEV) {
-              console.log('[SettingsPage] ===== PASSWORD RESET EMAIL SENT =====');
-              console.log('[SettingsPage] Response data:', result.data);
-              console.log('[SettingsPage] Email should be sent to:', user.email);
-            }
-          }
-        }).catch((err) => {
-          if (import.meta.env.DEV) {
-            console.error('[SettingsPage] ===== PASSWORD RESET EXCEPTION =====');
-            console.error('[SettingsPage] Error:', err);
-          }
-          setAccountError('Ошибка отправки письма');
-        });
-        
-        successMessages.push('Письмо для смены пароля отправлено на вашу почту');
-        setNewPassword('');
-        setConfirmPassword('');
       }
 
       if (successMessages.length > 0) {
@@ -751,26 +684,9 @@ export function SettingsPage() {
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <Label>Новый пароль</Label>
-              <Button variant="ghost" size="sm" onClick={() => setShowPasswords(!showPasswords)} className="h-6 px-2">
-                {showPasswords ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              </Button>
+            <div className="text-xs text-muted-foreground">
+              Для смены пароля используйте функцию "Забыли пароль?" на странице входа
             </div>
-            
-            <Input
-              type={showPasswords ? 'text' : 'password'}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••••"
-            />
-            
-            <Input
-              type={showPasswords ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Подтвердите пароль"
-            />
 
             <Button 
               onClick={handleUpdateAccount} 
