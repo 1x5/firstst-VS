@@ -65,11 +65,28 @@ export function AuthPage() {
   // Обработка callback от Supabase для reset password
   useEffect(() => {
     const handleResetPasswordCallback = async () => {
+      if (import.meta.env.DEV) {
+        console.log('[reset-password] ===== CALLBACK HANDLING START =====');
+        console.log('[reset-password] Location:', {
+          pathname: location.pathname,
+          hash: location.hash ? location.hash.substring(0, 50) + '...' : 'empty',
+          search: location.search
+        });
+      }
+      
       // Проверяем, есть ли hash в URL (Supabase передает параметры через hash)
       // Также проверяем sessionStorage для случая, если страница была загружена через 404.html
       const hashFromStorage = typeof window !== 'undefined' 
         ? sessionStorage.getItem('_reset_password_hash')
         : null;
+      
+      if (import.meta.env.DEV) {
+        console.log('[reset-password] Hash sources:', {
+          fromUrl: location.hash ? 'yes' : 'no',
+          fromStorage: hashFromStorage ? 'yes' : 'no',
+          storageValue: hashFromStorage ? hashFromStorage.substring(0, 50) + '...' : null
+        });
+      }
       
       const hashToProcess = location.hash || (hashFromStorage ? `#${hashFromStorage}` : null);
       
@@ -77,10 +94,13 @@ export function AuthPage() {
         // Сохраняем hash в sessionStorage на случай перезагрузки
         if (typeof window !== 'undefined' && location.hash) {
           sessionStorage.setItem('_reset_password_hash', location.hash.substring(1));
+          if (import.meta.env.DEV) {
+            console.log('[reset-password] Saved hash to sessionStorage');
+          }
         }
+        
         if (import.meta.env.DEV) {
-          console.log('[reset-password] ===== CALLBACK HANDLING START =====');
-          console.log('[reset-password] Full hash:', location.hash.substring(0, 100) + '...');
+          console.log('[reset-password] Processing hash:', hashToProcess.substring(0, 100) + '...');
         }
         
         try {
