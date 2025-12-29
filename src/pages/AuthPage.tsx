@@ -29,6 +29,25 @@ export function AuthPage() {
 
   const { signIn, signUp, resetPassword, updatePassword, isLoading, error, clearError, user } = useAuthStore();
   
+  // Восстанавливаем режим reset из sessionStorage при монтировании
+  useEffect(() => {
+    if (location.pathname.includes('/auth/reset-password')) {
+      if (location.hash) {
+        // Если есть hash, значит это callback от Supabase
+        // Режим будет установлен в handleResetPasswordCallback
+        return;
+      }
+      
+      // Если нет hash, но есть сохраненное состояние
+      if (passwordUpdated) {
+        setMode('reset');
+        if (import.meta.env.DEV) {
+          console.log('[reset-password] Restored reset mode from sessionStorage');
+        }
+      }
+    }
+  }, [location.pathname, location.hash, passwordUpdated]);
+  
   // Логируем изменения user и mode для диагностики
   useEffect(() => {
     if (import.meta.env.DEV) {
