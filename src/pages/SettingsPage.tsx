@@ -563,10 +563,8 @@ export function SettingsPage() {
         }
         
         // Отправляем запрос и ждем ответ (но не блокируем UI)
-        // Используем production URL для redirect
-        const redirectUrl = typeof window !== 'undefined' 
-          ? `${window.location.origin}/auth/callback`
-          : 'https://uchet1.ru/auth/callback';
+        // Всегда используем production URL для redirect
+        const redirectUrl = 'https://uchet1.ru/auth/callback';
         const emailUpdate = supabase.auth.updateUser({ 
           email: trimmedEmail,
           options: {
@@ -621,10 +619,8 @@ export function SettingsPage() {
           throw new Error('Email пользователя не найден');
         }
         
-        // Используем production URL для redirect
-        const redirectUrl = typeof window !== 'undefined' 
-          ? `${window.location.origin}/auth/reset-password`
-          : 'https://uchet1.ru/auth/reset-password';
+        // Всегда используем production URL для redirect
+        const redirectUrl = 'https://uchet1.ru/auth/reset-password';
         const passwordReset = supabase.auth.resetPasswordForEmail(user.email, {
           redirectTo: redirectUrl,
         });
