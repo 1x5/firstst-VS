@@ -23,6 +23,9 @@ interface AuthState {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
   updatePassword: (newPassword: string) => Promise<boolean>;
+  // OTP methods
+  sendOTP: (email: string, type: 'signup' | 'recovery') => Promise<boolean>;
+  verifyOTP: (email: string, token: string, type: 'signup' | 'recovery') => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -206,35 +209,29 @@ export const useAuthStore = create<AuthState>((set) => ({
           return;
         }
         
-        if (session?.user) {
-          // Проверяем, является ли это recovery сессией (для сброса пароля)
-          // Recovery сессии имеют тип 'recovery' в app_metadata или мы на странице reset-password
-          const isRecoverySession = session.user.app_metadata?.provider === 'email' && 
-            (typeof window !== 'undefined' && window.location.pathname.includes('/auth/reset-password'));
-          
-          // Для recovery сессий НЕ загружаем данные пользователя
-          // Это позволяет избежать ошибок RLS и проблем с сетью
-          if (!isRecoverySession) {
-            try {
-              await loadUserData(session.user.id);
-            } catch (error) {
-              if (import.meta.env.DEV) {
-                console.error('[onAuthStateChange] Error loading user data:', error);
-              }
-              // Не блокируем установку сессии при ошибках загрузки данных
-            }
-          } else {
-            if (import.meta.env.DEV) {
-              console.log('[onAuthStateChange] Recovery session detected, skipping user data load');
-            }
-          }
-        } else {
-          clearUserData();
-        }
+        // Обновляем состояние СНАЧАЛА, чтобы UI обновился немедленно
         set({
           session,
           user: session?.user ?? null,
         });
+        
+        if (session?.user) {
+          // Проверяем, является ли это recovery сессией (для сброса пароля)
+          const isRecoverySession = session.user.app_metadata?.provider === 'email' && 
+            (typeof window !== 'undefined' && window.location.pathname.includes('/auth/reset-password'));
+          
+          // Для recovery сессий НЕ загружаем данные пользователя
+          if (!isRecoverySession) {
+            // Загружаем данные в фоне, не блокируя UI
+            loadUserData(session.user.id).catch((error) => {
+              if (import.meta.env.DEV) {
+                console.error('[onAuthStateChange] Error loading user data (non-blocking):', error);
+              }
+            });
+          }
+        } else {
+          clearUserData();
+        }
       });
     } catch (error) {
       clearTimeout(timeoutId);
@@ -368,17 +365,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
       }
 
-      // Загружаем данные пользователя (не блокируем вход при ошибках)
-      try {
-        await loadUserData(data.user.id);
-      } catch (loadError) {
-        if (import.meta.env.DEV) {
-          console.error('[signIn] Error loading user data, but continuing login:', loadError);
-        }
-        // Продолжаем вход даже если загрузка данных не удалась
-      }
-
-      // Обновляем состояние - это важно сделать в любом случае
+      // Обновляем состояние СНАЧАЛА, чтобы UI обновился
       set({
         user: data.user,
         session: data.session,
@@ -390,6 +377,14 @@ export const useAuthStore = create<AuthState>((set) => ({
         console.log('[signIn] User object:', data.user);
         console.log('[signIn] Session object:', data.session);
       }
+
+      // Загружаем данные пользователя в фоне (не блокируем вход)
+      loadUserData(data.user.id).catch((loadError) => {
+        if (import.meta.env.DEV) {
+          console.error('[signIn] Error loading user data (non-blocking):', loadError);
+        }
+        // Продолжаем работу даже если загрузка данных не удалась
+      });
 
       return true;
     } catch (error) {
@@ -483,6 +478,92 @@ export const useAuthStore = create<AuthState>((set) => ({
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? translateError(error.message) : 'Ошибка обновления пароля';
+      set({ isLoading: false, error: errorMessage });
+      return false;
+    }
+  },
+
+  sendOTP: async (email: string, type: 'signup' | 'recovery') => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      if (type === 'recovery') {
+        // Для recovery используем signInWithOtp
+        // ВАЖНО: В Supabase Dashboard нужно настроить отправку OTP кодов:
+        // 1. Authentication -> Email Templates -> Magic Link
+        // 2. Изменить шаблон так, чтобы он отправлял OTP код, а не ссылку
+        // 3. Или использовать шаблон "OTP" вместо "Magic Link"
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: false,
+            // Не указываем emailRedirectTo - это заставит отправить OTP код
+          },
+        });
+        
+        if (error) {
+          if (import.meta.env.DEV) {
+            console.error('[sendOTP] Recovery OTP error:', error);
+            console.warn('[sendOTP] Если приходит ссылка вместо кода, настройте Email Templates в Supabase Dashboard');
+          }
+          throw error;
+        }
+      } else {
+        // Для signup используем signInWithOtp
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: true,
+          },
+        });
+
+        if (error) {
+          if (import.meta.env.DEV) {
+            console.error('[sendOTP] Signup OTP error:', error);
+          }
+          throw error;
+        }
+      }
+
+      set({ isLoading: false });
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? translateError(error.message) : 'Ошибка отправки кода';
+      set({ isLoading: false, error: errorMessage });
+      return false;
+    }
+  },
+
+  verifyOTP: async (email: string, token: string, type: 'signup' | 'recovery') => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: type === 'signup' ? 'signup' : 'recovery',
+      });
+
+      if (error) throw error;
+
+      if (data.session) {
+        // Если есть сессия, обновляем состояние
+        set({
+          session: data.session,
+          user: data.user,
+          isLoading: false,
+        });
+        
+        if (data.user) {
+          await loadUserData(data.user.id);
+        }
+      } else {
+        set({ isLoading: false });
+      }
+
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? translateError(error.message) : 'Ошибка проверки кода';
       set({ isLoading: false, error: errorMessage });
       return false;
     }

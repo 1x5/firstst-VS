@@ -203,3 +203,244 @@ gt stack submit
   status = 200
 ```
 
+---
+
+## 🛡️ ПРАВИЛА ПРЕДОТВРАЩЕНИЯ ОШИБОК
+
+### 1. ПРОВЕРКА ПЕРЕД КОММИТОМ (обязательно!)
+
+```bash
+# Всегда выполняй перед каждым коммитом:
+pnpm build          # Проверка сборки
+pnpm lint           # Проверка линтера
+# Если есть тесты:
+pnpm test           # Запуск тестов
+```
+
+**НИКОГДА не коммить код, который не проходит `pnpm build`!**
+
+### 2. ЛИМИТ РАЗМЕРА КОМПОНЕНТА
+
+❌ **ЗАПРЕЩЕНО**: Файлы > 300 строк
+✅ **ПРАВИЛЬНО**: Разбивай на подкомпоненты
+
+```
+# Плохо: AuthPage.tsx (800 строк) — делает всё
+# Хорошо:
+pages/auth/
+├── LoginForm.tsx      # ~100 строк
+├── RegisterForm.tsx   # ~100 строк
+├── ForgotPassword.tsx # ~80 строк
+├── ResetPassword.tsx  # ~100 строк
+├── OTPVerification.tsx # ~80 строк
+└── AuthLayout.tsx     # ~50 строк (общий layout)
+```
+
+**Правило: 1 файл = 1 ответственность**
+
+### 3. AUTH FLOW — СЛОЖНЫЕ СЦЕНАРИИ
+
+При работе с Supabase Auth **ВСЕГДА** учитывай:
+
+```tsx
+// ✅ Обязательные проверки для auth:
+1. Таймауты — добавляй защиту от зависания (10-15 сек)
+2. Recovery сессии — проверяй тип сессии перед загрузкой данных
+3. Hash-фрагменты — могут теряться при редиректах (особенно на GH Pages)
+4. Приватный режим браузера — localStorage может быть недоступен
+5. Ошибки сети — всегда обрабатывай и показывай пользователю
+```
+
+```tsx
+// Шаблон безопасной инициализации auth:
+const initialize = async () => {
+  const timeoutId = setTimeout(() => {
+    set({ isLoading: false }); // Защита от зависания
+  }, 10000);
+  
+  try {
+    // Проверка localStorage
+    let storageAvailable = false;
+    try {
+      localStorage.setItem('_test', '1');
+      localStorage.removeItem('_test');
+      storageAvailable = true;
+    } catch { storageAvailable = false; }
+    
+    const { data, error } = await supabase.auth.getSession();
+    clearTimeout(timeoutId);
+    
+    if (error) {
+      set({ isLoading: false, user: null });
+      return;
+    }
+    // ... остальная логика
+  } catch (error) {
+    clearTimeout(timeoutId);
+    set({ isLoading: false, error: translateError(error.message) });
+  }
+};
+```
+
+### 4. ХОСТИНГ — ВЫБОР ПЛАТФОРМЫ
+
+| Платформа | SPA Routing | Auth Redirects | Рекомендация |
+|-----------|-------------|----------------|--------------|
+| Netlify | ✅ Авто | ✅ Работает | **РЕКОМЕНДУЕТСЯ** |
+| Vercel | ✅ Авто | ✅ Работает | Хорошо |
+| GitHub Pages | ❌ Нужен хак | ⚠️ Проблемы с hash | **НЕ для auth проектов** |
+
+**Если проект с авторизацией — используй Netlify, НЕ GitHub Pages!**
+
+### 5. ЛОГИРОВАНИЕ
+
+```tsx
+// ✅ ПРАВИЛЬНО: только в dev режиме
+if (import.meta.env.DEV) {
+  console.log('[auth] Session:', session);
+}
+
+// ❌ ЗАПРЕЩЕНО: логи в production
+console.log('Debug:', data); // Удаляй перед коммитом!
+```
+
+### 6. SQUASH КОММИТОВ
+
+При серии фиксов одной проблемы — объединяй:
+
+```bash
+# Плохо: 5 коммитов "fix: ..."
+fix: исправлена ошибка X
+fix: ещё исправление X
+fix: опять X
+fix: финальный фикс X
+
+# Хорошо: 1 коммит
+git rebase -i HEAD~5  # Squash в один
+fix: исправлена ошибка X (полное решение)
+```
+
+### 7. FEATURE BRANCHES
+
+```bash
+# ❌ Плохо: коммиты напрямую в main
+git commit -m "feat: новая фича"
+git push origin main
+
+# ✅ Хорошо: feature branch
+git checkout -b feat/auth-otp
+# ... работаешь ...
+git commit -m "feat: добавлен OTP flow"
+gt stack submit  # или git push + PR
+```
+
+---
+
+## 🧪 ТЕСТИРОВАНИЕ (ОБЯЗАТЕЛЬНО для auth)
+
+### Минимальный набор тестов:
+
+```tsx
+// src/__tests__/auth.test.ts
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Auth Flow', () => {
+  it('should handle login success', async () => {
+    // ...
+  });
+  
+  it('should handle login error', async () => {
+    // ...
+  });
+  
+  it('should handle password reset flow', async () => {
+    // ...
+  });
+  
+  it('should handle session timeout', async () => {
+    // ...
+  });
+});
+```
+
+### Установка Vitest:
+
+```bash
+pnpm add -D vitest @testing-library/react @testing-library/jest-dom jsdom
+```
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
+});
+```
+
+---
+
+## 📋 ЧЕКЛИСТ ПЕРЕД ДЕПЛОЕМ
+
+- [ ] `pnpm build` проходит без ошибок
+- [ ] `pnpm lint` проходит без ошибок  
+- [ ] Нет `console.log` в production коде
+- [ ] Все env переменные настроены
+- [ ] RLS политики проверены
+- [ ] Протестирован auth flow:
+  - [ ] Логин
+  - [ ] Регистрация
+  - [ ] Сброс пароля (через email ссылку!)
+  - [ ] Выход
+- [ ] Протестирован приватный режим браузера
+- [ ] Мобильная версия работает
+
+---
+
+## 🔥 АНТИПАТТЕРНЫ (что НЕ делать)
+
+### 1. Монолитные компоненты
+```tsx
+// ❌ AuthPage.tsx с 800 строками и 4 режимами
+// ✅ Разбей на отдельные компоненты
+```
+
+### 2. Debug в production
+```tsx
+// ❌ console.log('session:', session);
+// ✅ if (import.meta.env.DEV) console.log(...)
+```
+
+### 3. Игнорирование ошибок сборки
+```bash
+# ❌ git push --force (игнорируя ошибки)
+# ✅ Сначала почини, потом пушь
+```
+
+### 4. Коммит синтаксических ошибок
+```bash
+# ❌ git commit без проверки
+# ✅ pnpm build && git commit
+```
+
+### 5. GitHub Pages для auth-проектов
+```bash
+# ❌ GitHub Pages + SPA + Supabase Auth
+# ✅ Netlify / Vercel + Supabase Auth
+```
+
+---
+
+## 🎯 САМОПРОВЕРКА ПЕРЕД ОТВЕТОМ
+
+> 1. Код проходит `pnpm build`?
+> 2. Файл < 300 строк?
+> 3. Нет console.log без DEV проверки?
+> 4. Auth flow учитывает таймауты и ошибки?
+> 5. Используется Netlify (не GH Pages) для auth?
+
+**Если хоть один пункт "нет" — исправь перед ответом!**
+
